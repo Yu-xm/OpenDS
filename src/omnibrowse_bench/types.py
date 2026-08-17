@@ -25,6 +25,7 @@ class ToolCall:
 @dataclass
 class ModelResponse:
     text: str = ""
+    reasoning_content: str = ""
     tool_calls: list[ToolCall] = field(default_factory=list)
     usage: dict[str, int] = field(default_factory=dict)
     finish_reason: str | None = None
@@ -36,4 +37,3 @@ class ToolResult:
     observation: dict[str, Any]
     raw: Any
     media: list[dict[str, str]] = field(default_factory=list)
-

@@ -12,7 +12,7 @@
     "supports_audio": false,
     "base_url": "https://api.example.com/v1",
     "api_key": "${MODEL_API_KEY}",
-    "timeout_seconds": 300,
+    "timeout_seconds": 1800,
     "parameters": {
       "temperature": 0,
       "max_tokens": 4096
@@ -35,7 +35,8 @@
     "max_image_searches": 5,
     "max_page_opens": 15,
     "max_media_bytes": 100000000,
-    "timeout_seconds": 600
+    "timeout_seconds": 3600,
+    "max_empty_answer_retries": 1
   },
   "output_root": "../results"
 }

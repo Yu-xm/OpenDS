@@ -13,22 +13,61 @@ TOOL_DEFINITIONS = [
     {
         "type": "function", "function": {
             "name": "text_search",
-            "description": "Search the live web. Returns ranked titles, URLs and snippets.",
-            "parameters": {"type": "object", "properties": {"query": {"type": "string"}}, "required": ["query"]},
+            "description": (
+                "Search the live public web with a text query. Returns ranked results containing "
+                "page titles, URLs, and search-engine snippets. Results reflect the current web and "
+                "may include webpages, documents, videos, and other publicly indexed resources."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "The complete text query to submit to the web search engine.",
+                    }
+                },
+                "required": ["query"],
+            },
         },
     },
     {
         "type": "function", "function": {
             "name": "image_search",
-            "description": "Search live web images. Returns image and source URLs; selected images are supplied visually when downloadable.",
-            "parameters": {"type": "object", "properties": {"query": {"type": "string"}}, "required": ["query"]},
+            "description": (
+                "Search images indexed on the live public web. Returns ranked image metadata, direct "
+                "image URLs, and the webpages where the images were found. When downloads succeed, a "
+                "limited number of top-ranked images are also supplied as visual observations."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "The complete text query describing the images to search for.",
+                    }
+                },
+                "required": ["query"],
+            },
         },
     },
     {
         "type": "function", "function": {
             "name": "open_page",
-            "description": "Fetch and extract the readable content of a public web page.",
-            "parameters": {"type": "object", "properties": {"url": {"type": "string", "description": "An http or https URL"}}, "required": ["url"]},
+            "description": (
+                "Fetch a public HTTP or HTTPS page and extract its readable text, title, and available "
+                "page metadata. The returned content may be truncated and may not include material "
+                "hidden behind authentication, interactive interfaces, or embedded audio and video."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "url": {
+                        "type": "string",
+                        "description": "The full public HTTP or HTTPS URL of the page to retrieve.",
+                    }
+                },
+                "required": ["url"],
+            },
         },
     },
 ]

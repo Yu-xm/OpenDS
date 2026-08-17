@@ -5,11 +5,77 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from typing import Any
+from unittest.mock import patch
 
+from omnibrowse_bench.agent import run_sample
+from omnibrowse_bench.models import OpenAICompatibleBackend
 from omnibrowse_bench.runner import run
+from omnibrowse_bench.types import ModelResponse, Sample
+
+
+class EmptyThenAnswerBackend:
+    display_name = "reasoning-model"
+    supports_video = False
+    supports_audio = False
+
+    def __init__(self) -> None:
+        self.calls: list[tuple[list[dict[str, Any]], list[dict[str, Any]]]] = []
+
+    def generate(self, messages: list[dict[str, Any]], tools: list[dict[str, Any]]) -> ModelResponse:
+        self.calls.append((list(messages), list(tools)))
+        if len(self.calls) == 1:
+            return ModelResponse(
+                reasoning_content="The answer follows from the evidence.",
+                usage={"input_tokens": 10, "output_tokens": 8},
+                finish_reason="stop", raw={"choices": [{"message": {"reasoning_content": "reasoning"}}]},
+            )
+        return ModelResponse(
+            text="University of Oxford", usage={"input_tokens": 12, "output_tokens": 3},
+            finish_reason="stop", raw={"choices": [{"message": {"content": "University of Oxford"}}]},
+        )
 
 
 class PipelineTest(unittest.TestCase):
+    def test_openai_adapter_reads_reasoning_content(self) -> None:
+        backend = OpenAICompatibleBackend({
+            "display_name": "test", "model_id": "test", "base_url": "https://example.test/v1",
+        })
+        raw = {
+            "choices": [{
+                "message": {"content": "", "reasoning_content": "private visible reasoning", "tool_calls": []},
+                "finish_reason": "stop",
+            }],
+            "usage": {"prompt_tokens": 5, "completion_tokens": 7},
+        }
+        with patch("omnibrowse_bench.models.post_json", return_value=raw) as post:
+            response = backend.generate([{"role": "user", "content": "question"}], [])
+        self.assertEqual(response.text, "")
+        self.assertEqual(response.reasoning_content, "private visible reasoning")
+        payload = post.call_args.args[1]
+        self.assertNotIn("tools", payload)
+        self.assertNotIn("tool_choice", payload)
+
+    def test_empty_answer_gets_one_forced_final_retry(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            backend = EmptyThenAnswerBackend()
+            sample = Sample("s1", "question", {}, root)
+            trace_path = root / "trajectory.jsonl"
+            outcome = run_sample(
+                sample, "OmniBrowse-Text", "test-run", backend,
+                [{"role": "user", "content": "question"}], {"api_key": "unused"},
+                {"max_steps": 3, "max_empty_answer_retries": 1}, trace_path, root / "artifacts",
+            )
+            self.assertEqual(outcome["status"], "success")
+            self.assertEqual(outcome["answer"], "University of Oxford")
+            self.assertTrue(backend.calls[0][1])
+            self.assertEqual(backend.calls[1][1], [])
+            self.assertEqual(backend.calls[1][0][-2]["reasoning_content"], "The answer follows from the evidence.")
+            events = [json.loads(line) for line in trace_path.read_text(encoding="utf-8").splitlines()]
+            self.assertIn("empty_answer_retry", [event["event"] for event in events])
+            self.assertEqual(events[-1]["metrics"]["empty_answer_retries"], 1)
+
     def test_mock_text_run_writes_csv_and_trace(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -44,4 +110,3 @@ class PipelineTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

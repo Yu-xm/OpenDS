@@ -61,7 +61,8 @@ class BridgeBackend:
                 arguments = json.loads(arguments)
             calls.append(ToolCall(str(item.get("id") or uuid.uuid4()), item["name"], dict(arguments)))
         return ModelResponse(
-            text=str(raw.get("text", "")), tool_calls=calls,
+            text=str(raw.get("text", "")),
+            reasoning_content=str(raw.get("reasoning_content") or ""), tool_calls=calls,
             usage=dict(raw.get("usage", {})), finish_reason=raw.get("finish_reason"), raw=raw,
         )
 
@@ -105,10 +106,13 @@ class OpenAICompatibleBackend:
 
     def generate(self, messages: list[dict[str, Any]], tools: list[dict[str, Any]]) -> ModelResponse:
         headers = {"Authorization": f"Bearer {self.api_key}"} if self.api_key else {}
-        raw = post_json(f"{self.base_url}/chat/completions", {
+        payload = {
             "model": self.model_id, "messages": self._messages(messages),
-            "tools": tools, "tool_choice": "auto", **self.parameters,
-        }, headers, self.timeout)
+            **self.parameters,
+        }
+        if tools:
+            payload.update({"tools": tools, "tool_choice": "auto"})
+        raw = post_json(f"{self.base_url}/chat/completions", payload, headers, self.timeout)
         choice = raw["choices"][0]
         message = choice.get("message", {})
         calls: list[ToolCall] = []
@@ -120,7 +124,8 @@ class OpenAICompatibleBackend:
             calls.append(ToolCall(str(item.get("id") or uuid.uuid4()), str(function.get("name", "")), dict(arguments)))
         usage = raw.get("usage") or {}
         return ModelResponse(
-            text=message.get("content") or "", tool_calls=calls,
+            text=message.get("content") or "",
+            reasoning_content=str(message.get("reasoning_content") or ""), tool_calls=calls,
             usage={"input_tokens": int(usage.get("prompt_tokens", 0)), "output_tokens": int(usage.get("completion_tokens", 0))},
             finish_reason=choice.get("finish_reason"), raw=raw,
         )

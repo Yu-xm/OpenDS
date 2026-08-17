@@ -29,8 +29,10 @@ class AgentTimeoutError(AgentError):
     status = "timeout"
 
 
-def _assistant_message(text: str, calls: list[Any]) -> dict[str, Any]:
+def _assistant_message(text: str, reasoning_content: str, calls: list[Any]) -> dict[str, Any]:
     message: dict[str, Any] = {"role": "assistant", "content": text or ""}
+    if reasoning_content:
+        message["reasoning_content"] = reasoning_content
     if calls:
         message["tool_calls"] = [
             {"id": call.id, "type": "function", "function": {"name": call.name, "arguments": json.dumps(call.arguments, ensure_ascii=False)}}
@@ -69,6 +71,7 @@ def run_sample(
     input_tokens = output_tokens = 0
     status, answer, error = "success", "", ""
     max_steps = int(agent_config.get("max_steps", 20))
+    max_empty_answer_retries = int(agent_config.get("max_empty_answer_retries", 1))
     total_timeout = float(agent_config.get("timeout_seconds", 600))
     budgets = {
         "text_search": int(agent_config.get("max_text_searches", 10)),
@@ -76,6 +79,7 @@ def run_sample(
         "open_page": int(agent_config.get("max_page_opens", 15)),
     }
     tools = SerperTools(serper_config, artifact_dir)
+    force_final = False
 
     with TraceWriter(trace_path, common) as trace:
         input_record: dict[str, Any] = {"question": sample.question}
@@ -89,24 +93,49 @@ def run_sample(
                 if time.monotonic() - started >= total_timeout:
                     raise AgentTimeoutError(f"Reached total timeout of {total_timeout:g} seconds")
                 call_started = time.monotonic()
-                response = model.generate(messages, TOOL_DEFINITIONS)
+                response = model.generate(messages, [] if force_final else TOOL_DEFINITIONS)
                 latency_ms = round((time.monotonic() - call_started) * 1000)
                 counts["model_calls"] += 1
                 input_tokens += int(response.usage.get("input_tokens", 0))
                 output_tokens += int(response.usage.get("output_tokens", 0))
+                raw_response_artifact = None
+                if response.raw is not None:
+                    raw_response_artifact = save_artifact(
+                        artifact_dir / f"model_response_{step:03d}.json", response.raw
+                    )
                 trace.write(
                     "model_response", step=step, response={
                         "text": response.text,
+                        "reasoning_content": response.reasoning_content,
                         "tool_calls": [{"id": c.id, "name": c.name, "arguments": c.arguments} for c in response.tool_calls],
                     }, usage=response.usage, latency_ms=latency_ms, finish_reason=response.finish_reason,
+                    raw_response_artifact=raw_response_artifact,
                 )
-                messages.append(_assistant_message(response.text, response.tool_calls))
+                messages.append(_assistant_message(response.text, response.reasoning_content, response.tool_calls))
                 if not response.tool_calls:
                     answer = response.text.strip()
                     if not answer:
+                        if counts["empty_answer_retries"] < max_empty_answer_retries:
+                            counts["empty_answer_retries"] += 1
+                            force_final = True
+                            messages.append({
+                                "role": "user",
+                                "content": (
+                                    "Provide the final answer now. Output only the requested answer in the "
+                                    "required format, without additional reasoning, and do not call tools."
+                                ),
+                            })
+                            trace.write(
+                                "empty_answer_retry", step=step,
+                                attempt=counts["empty_answer_retries"],
+                                finish_reason=response.finish_reason,
+                            )
+                            continue
                         status = "empty_answer"
                     trace.write("final_answer", step=step, answer=answer, citations=[], finish_reason=response.finish_reason)
                     break
+
+                force_final = False
 
                 visual_messages: list[dict[str, Any]] = []
                 for call in response.tool_calls:
@@ -157,5 +186,6 @@ def run_sample(
             "total_latency_ms": total_ms, "model_calls": counts["model_calls"], "tool_calls": counts["tool_calls"],
             "text_search_calls": counts["text_search"], "image_search_calls": counts["image_search"],
             "open_page_calls": counts["open_page"], "input_tokens": input_tokens, "output_tokens": output_tokens,
+            "empty_answer_retries": counts["empty_answer_retries"],
         })
     return {"answer": answer, "status": status, "error": error, "latency_s": round((time.monotonic() - started), 3), "tool_calls": counts["tool_calls"]}

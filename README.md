@@ -114,6 +114,7 @@ bridge 必须统一返回以下格式之一。
 ```json
 {
   "text": "final answer",
+  "reasoning_content": "optional provider-visible reasoning",
   "tool_calls": [],
   "usage": {"input_tokens": 500, "output_tokens": 50},
   "finish_reason": "stop"
@@ -169,6 +170,7 @@ results/
             │   └── sample-id.jsonl
             └── artifacts/
                 └── sample-id/
+                    ├── model_response_001.json
                     ├── text_search_call-id.json
                     ├── open_page_call-id.json
                     └── image_call-id_01.jpg
@@ -180,12 +182,15 @@ results/
 
 - `run_start`：问题及媒体路径
 - `model_response`：API 可见文本、工具调用、token、延迟
+- `empty_answer_retry`：模型只返回思考内容或空正文时触发的一次统一最终回答请求
 - `tool_start`：工具参数
 - `tool_result`：实际传给模型的标准化观察、原始 artifact 路径与哈希
 - `final_answer`：最终答案
 - `run_end`：状态、总用时、调用次数与 token
 
-这是 **observable agent trajectory**，不是隐藏 chain-of-thought。框架不会记录 API key，也不会要求模型暴露内部推理。
+这是 **observable agent trajectory**。如果兼容 API 明确返回 `reasoning_content`，框架会将其保存并在多轮调用中原样传回；它不会把思考内容当作最终答案。框架不会记录 API key，也不会尝试访问服务端未返回的隐藏状态。原始模型响应另存为 artifact，并在事件中记录路径和哈希。
+
+推理模型如果以 `stop` 或 `length` 结束但没有返回正文，runner 默认会追加一次不带工具的统一最终回答请求。可用 `agent.max_empty_answer_retries` 调整；正式比较时应对所有模型固定为相同值。
 
 ## 6. 公平性约束
 

@@ -17,9 +17,17 @@ from .trace import TraceWriter, now_iso
 
 
 DEFAULT_PROMPT = """You are participating in a controlled live-web research benchmark.
-Use only the supplied text_search, image_search, and open_page tools for web access.
-Inspect the input media when present. Search iteratively, verify claims using web evidence,
-and return a concise final answer. Do not invoke or assume any provider-native search tool."""
+
+Use only the supplied text_search, image_search, and open_page tools for web access. Conduct
+thorough, autonomous research and use the available tools as you judge appropriate. Inspect
+input media when present, verify the information needed to answer the question, and do not
+fabricate unsupported facts. Decide your own research strategy and continue until you have
+sufficient evidence or the available budget is exhausted.
+
+Final-answer format: follow any explicit format requested in the question. Otherwise, output
+only one short English paragraph, normally one to three sentences and no more than 80 words.
+State the answer directly. Do not include headings, bullet points, a research narrative,
+chain-of-thought, or labels such as "Final Answer"."""
 
 
 def _git_commit(root: Path) -> str | None:
