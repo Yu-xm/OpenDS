@@ -71,6 +71,8 @@ export MODEL_API_KEY="..."
 
 该适配器会发送标准 function calling。文本和图片兼容性通常较好；音频被编码为 `input_audio`，视频被编码为 `video_url` data URL。不同兼容服务对音视频字段支持并不一致。如果某个官方 API 的格式不同，请使用 bridge，而不要修改 benchmark 核心循环。
 
+对于持续数分钟的推理模型，可在 `model.parameters` 中设置 `"stream": true`。runner 会解析 OpenAI-compatible SSE，持续接收 `content`、`reasoning_content` 和分片 function call，从而避免非流式请求长时间无数据时被服务商网关断开。流式响应会组装为统一的模型响应 artifact。
+
 ### Bridge 请求协议
 
 框架向 `model.endpoint` POST：

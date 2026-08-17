@@ -56,6 +56,36 @@ class PipelineTest(unittest.TestCase):
         self.assertNotIn("tools", payload)
         self.assertNotIn("tool_choice", payload)
 
+    def test_openai_adapter_assembles_streamed_reasoning_and_tool_call(self) -> None:
+        backend = OpenAICompatibleBackend({
+            "display_name": "test", "model_id": "test", "base_url": "https://example.test/v1",
+            "parameters": {"stream": True},
+        })
+        chunks = [
+            {"id": "r1", "model": "test", "choices": [{
+                "index": 0, "delta": {"reasoning_content": "Search "}, "finish_reason": None,
+            }]},
+            {"id": "r1", "model": "test", "choices": [{
+                "index": 0, "delta": {"reasoning_content": "now.", "tool_calls": [{
+                    "index": 0, "id": "call_1", "function": {
+                        "name": "text_search", "arguments": "{\"query\":",
+                    },
+                }]}, "finish_reason": None,
+            }]},
+            {"id": "r1", "model": "test", "choices": [{
+                "index": 0, "delta": {"tool_calls": [{
+                    "index": 0, "function": {"arguments": "\"Oxford\"}"},
+                }]}, "finish_reason": "tool_calls",
+            }], "usage": {"prompt_tokens": 5, "completion_tokens": 7}},
+        ]
+        with patch("omnibrowse_bench.models.post_sse_json", return_value=chunks) as post:
+            response = backend.generate([{"role": "user", "content": "question"}], [{"type": "function"}])
+        self.assertEqual(response.reasoning_content, "Search now.")
+        self.assertEqual(response.tool_calls[0].name, "text_search")
+        self.assertEqual(response.tool_calls[0].arguments, {"query": "Oxford"})
+        self.assertEqual(response.finish_reason, "tool_calls")
+        self.assertTrue(post.call_args.args[1]["stream"])
+
     def test_empty_answer_gets_one_forced_final_retry(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

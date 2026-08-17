@@ -7,7 +7,7 @@ import uuid
 from pathlib import Path
 from typing import Any, Protocol
 
-from .http import post_json
+from .http import post_json, post_sse_json
 from .types import ModelResponse, ToolCall
 
 
@@ -104,6 +104,56 @@ class OpenAICompatibleBackend:
             output.append(item)
         return output
 
+    @staticmethod
+    def _assemble_stream(chunks: list[dict[str, Any]]) -> dict[str, Any]:
+        text_parts: list[str] = []
+        reasoning_parts: list[str] = []
+        tool_parts: dict[int, dict[str, Any]] = {}
+        usage: dict[str, Any] = {}
+        finish_reason = None
+        response_id = model_name = None
+
+        for chunk in chunks:
+            response_id = chunk.get("id") or response_id
+            model_name = chunk.get("model") or model_name
+            if chunk.get("usage"):
+                usage = dict(chunk["usage"])
+            for choice in chunk.get("choices") or []:
+                if choice.get("index", 0) != 0:
+                    continue
+                finish_reason = choice.get("finish_reason") or finish_reason
+                delta = choice.get("delta") or choice.get("message") or {}
+                if delta.get("content"):
+                    text_parts.append(str(delta["content"]))
+                if delta.get("reasoning_content"):
+                    reasoning_parts.append(str(delta["reasoning_content"]))
+                for item in delta.get("tool_calls") or []:
+                    index = int(item.get("index", len(tool_parts)))
+                    target = tool_parts.setdefault(index, {
+                        "id": "", "type": "function", "function": {"name": "", "arguments": ""},
+                    })
+                    if item.get("id"):
+                        target["id"] = str(item["id"])
+                    function = item.get("function") or {}
+                    if function.get("name"):
+                        target["function"]["name"] += str(function["name"])
+                    arguments = function.get("arguments")
+                    if arguments:
+                        if not isinstance(arguments, str):
+                            arguments = json.dumps(arguments, ensure_ascii=False)
+                        target["function"]["arguments"] += arguments
+
+        message = {
+            "role": "assistant", "content": "".join(text_parts),
+            "reasoning_content": "".join(reasoning_parts),
+            "tool_calls": [tool_parts[index] for index in sorted(tool_parts)],
+        }
+        return {
+            "id": response_id, "object": "chat.completion", "model": model_name,
+            "choices": [{"index": 0, "message": message, "finish_reason": finish_reason}],
+            "usage": usage, "streamed": True, "stream_event_count": len(chunks),
+        }
+
     def generate(self, messages: list[dict[str, Any]], tools: list[dict[str, Any]]) -> ModelResponse:
         headers = {"Authorization": f"Bearer {self.api_key}"} if self.api_key else {}
         payload = {
@@ -112,7 +162,11 @@ class OpenAICompatibleBackend:
         }
         if tools:
             payload.update({"tools": tools, "tool_choice": "auto"})
-        raw = post_json(f"{self.base_url}/chat/completions", payload, headers, self.timeout)
+        endpoint = f"{self.base_url}/chat/completions"
+        if payload.get("stream"):
+            raw = self._assemble_stream(post_sse_json(endpoint, payload, headers, self.timeout))
+        else:
+            raw = post_json(endpoint, payload, headers, self.timeout)
         choice = raw["choices"][0]
         message = choice.get("message", {})
         calls: list[ToolCall] = []
