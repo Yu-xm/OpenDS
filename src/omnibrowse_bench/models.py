@@ -46,9 +46,9 @@ class BridgeBackend:
         self.model_id = config["model_id"]
         self.endpoint = config["endpoint"]
         self.timeout = float(config.get("timeout_seconds", 300))
-        self.max_retries = int(config.get("max_retries", 3))
+        self.max_retries = int(config.get("max_retries", 2))
         self.retry_base_seconds = float(config.get("retry_base_seconds", 2))
-        self.retry_max_seconds = float(config.get("retry_max_seconds", 60))
+        self.retry_max_seconds = float(config.get("retry_max_seconds", 30))
         self.headers = dict(config.get("headers", {}))
         self.parameters = dict(config.get("parameters", {}))
 
@@ -79,9 +79,9 @@ class OpenAICompatibleBackend:
         self.base_url = config["base_url"].rstrip("/")
         self.api_key = config.get("api_key", "")
         self.timeout = float(config.get("timeout_seconds", 300))
-        self.max_retries = int(config.get("max_retries", 3))
+        self.max_retries = int(config.get("max_retries", 2))
         self.retry_base_seconds = float(config.get("retry_base_seconds", 2))
-        self.retry_max_seconds = float(config.get("retry_max_seconds", 60))
+        self.retry_max_seconds = float(config.get("retry_max_seconds", 30))
         self.parameters = dict(config.get("parameters", {}))
 
     def _content(self, content: Any) -> Any:

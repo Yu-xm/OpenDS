@@ -55,9 +55,11 @@ def _unsupported_trace(trace_path: Path, sample: Any, benchmark: str, model_name
     with TraceWriter(trace_path, common) as trace:
         trace.write("run_start", input=input_record)
         trace.write("run_end", status="unsupported_input", error={"message": reason}, metrics={
-            "total_latency_ms": 0, "model_calls": 0, "tool_calls": 0,
+            "total_latency_ms": 0, "model_calls": 0, "model_attempts": 0, "model_errors": 0,
+            "tool_calls": 0,
             "text_search_calls": 0, "image_search_calls": 0, "open_page_calls": 0,
             "tool_requests": 0, "blocked_tool_calls": 0, "tool_errors": 0,
+            "invalid_tool_calls": 0, "forced_finalizations": 0, "forced_final_reason": None,
             "input_tokens": 0, "output_tokens": 0,
         })
 
@@ -110,7 +112,7 @@ def run(config: dict[str, Any], resume: bool = False, limit: int | None = None) 
             outcome = {
                 "answer": "", "status": "unsupported_input", "error": reason, "latency_s": 0.0,
                 "tool_calls": 0, "text_search_calls": 0, "image_search_calls": 0,
-                "open_page_calls": 0, "blocked_tool_calls": 0,
+                "open_page_calls": 0, "blocked_tool_calls": 0, "forced_final_reason": "",
             }
         else:
             try:
@@ -125,7 +127,7 @@ def run(config: dict[str, Any], resume: bool = False, limit: int | None = None) 
                 outcome = {
                     "answer": "", "status": "unsupported_input", "error": reason, "latency_s": 0.0,
                     "tool_calls": 0, "text_search_calls": 0, "image_search_calls": 0,
-                    "open_page_calls": 0, "blocked_tool_calls": 0,
+                    "open_page_calls": 0, "blocked_tool_calls": 0, "forced_final_reason": "",
                 }
         row = dict(sample.row)
         row.update({
@@ -136,6 +138,7 @@ def run(config: dict[str, Any], resume: bool = False, limit: int | None = None) 
             "image_search_calls": str(outcome["image_search_calls"]),
             "open_page_calls": str(outcome["open_page_calls"]),
             "blocked_tool_calls": str(outcome["blocked_tool_calls"]),
+            "forced_final_reason": outcome["forced_final_reason"],
             "trace_path": str(trace_path), "error": outcome["error"],
         })
         rows.append(row)

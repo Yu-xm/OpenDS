@@ -73,7 +73,7 @@ export MODEL_API_KEY="..."
 
 对于持续数分钟的推理模型，可在 `model.parameters` 中设置 `"stream": true`。runner 会解析 OpenAI-compatible SSE，持续接收 `content`、`reasoning_content` 和分片 function call，从而避免非流式请求长时间无数据时被服务商网关断开。流式响应会组装为统一的模型响应 artifact。
 
-模型请求遇到 HTTP 429、部分 5xx 或临时连接错误时默认最多重试 3 次。429 若没有服务端 `Retry-After`，默认等待 60 秒；可通过模型配置中的 `max_retries`、`retry_base_seconds` 和 `retry_max_seconds` 调整。单次 Serper 工具失败不会在 HTTP 层自动重试，而是作为可观察的失败工具结果交还模型，避免不透明地增加搜索调用数。
+模型请求遇到 HTTP 429、部分 5xx 或临时连接错误时默认最多重试 2 次。429 若没有服务端 `Retry-After`，每次最多等待 30 秒；可通过模型配置中的 `max_retries`、`retry_base_seconds` 和 `retry_max_seconds` 调整。单次 Serper 工具失败不会在 HTTP 层自动重试，而是作为可观察的失败工具结果交还模型，避免不透明地增加搜索调用数。
 
 ### Bridge 请求协议
 
@@ -210,6 +210,12 @@ Prompt 会要求模型避免重复搜索，但 runner 还提供确定性的框�
 
 `predictions.csv` 会分别写入 `tool_calls`（实际执行总数）、`text_search_calls`、`image_search_calls`、`open_page_calls` 和 `blocked_tool_calls`。模型发起但被循环保护或预算限制拦截的调用只计入 `blocked_tool_calls`，不计入实际 Serper 调用数。轨迹的 `run_end.metrics` 还会记录 `tool_requests` 和 `tool_errors`。
 
+### 超时前的统一作答
+
+示例配置把每道题的总运行时间设为 360 秒，单次模型请求设为 300 秒。剩余 60 秒、进入最后一个 agent step、普通研究轮的模型请求失败、请求的工具预算已耗尽、出现未知工具调用或触发循环保护时，runner 会关闭工具并要求模型基于已收集证据作答。`predictions.csv` 的 `forced_final_reason` 和轨迹中的 `forced_final` 事件会记录触发原因。
+
+这是一种提前收尾机制，不可能挽救已经彻底不可用的模型 API。如果最终回答请求本身在重试后仍然超时或被限流，结果仍会是 `api_error`；此时轨迹和 artifact 会保留已有研究内容，但框架不会把 provider reasoning 冒充为答案。
+
 ## 6. 公平性约束
 
 正式比较时固定以下配置，并把生成的 `run_config.json` 和结果一起保存：
@@ -230,7 +236,6 @@ Prompt 会要求模型避免重复搜索，但 runner 还提供确定性的框�
 
 - `success`
 - `empty_answer`
-- `invalid_tool_call`
 - `max_steps`
 - `api_error`
 - `timeout`

@@ -22,10 +22,6 @@ class MaxStepsError(AgentError):
     status = "max_steps"
 
 
-class InvalidToolCallError(AgentError):
-    status = "invalid_tool_call"
-
-
 class AgentTimeoutError(AgentError):
     status = "timeout"
 
@@ -101,6 +97,27 @@ def _compact_history(
     return changed, before, after
 
 
+def _generate_with_deadline(
+    model: ModelBackend, messages: list[dict[str, Any]], tools: list[dict[str, Any]],
+    remaining_seconds: float, disable_retries: bool,
+) -> Any:
+    """Temporarily bound adapters that expose timeout/retry attributes to this sample's deadline."""
+    originals: dict[str, Any] = {}
+    updates: dict[str, Any] = {}
+    if hasattr(model, "timeout"):
+        updates["timeout"] = min(float(getattr(model, "timeout")), max(0.1, remaining_seconds))
+    if disable_retries and hasattr(model, "max_retries"):
+        updates["max_retries"] = 0
+    try:
+        for name, value in updates.items():
+            originals[name] = getattr(model, name)
+            setattr(model, name, value)
+        return model.generate(messages, tools)
+    finally:
+        for name, value in originals.items():
+            setattr(model, name, value)
+
+
 def _assistant_message(text: str, reasoning_content: str, calls: list[Any]) -> dict[str, Any]:
     message: dict[str, Any] = {"role": "assistant", "content": text or ""}
     if reasoning_content:
@@ -153,7 +170,11 @@ def run_sample(
     history_search_results = int(agent_config.get("history_search_results", 2))
     history_page_chars = int(agent_config.get("history_page_chars", 2000))
     keep_recent_reasoning = int(agent_config.get("keep_recent_reasoning_messages", 2))
-    total_timeout = float(agent_config.get("timeout_seconds", 600))
+    total_timeout = float(agent_config.get("timeout_seconds", 360))
+    finalization_grace = min(
+        total_timeout, max(0.0, float(agent_config.get("finalization_grace_seconds", 60)))
+    )
+    final_answer_reserve_steps = max(1, int(agent_config.get("final_answer_reserve_steps", 1)))
     budgets = {
         "text_search": int(agent_config.get("max_text_searches", 10)),
         "image_search": int(agent_config.get("max_image_searches", 5)),
@@ -165,8 +186,30 @@ def run_sample(
     search_history: dict[str, list[frozenset[str]]] = {"text_search": [], "image_search": []}
     searches_since_open = 0
     consecutive_blocked_steps = 0
+    forced_final_reason = ""
 
     with TraceWriter(trace_path, common) as trace:
+        def enter_forced_final(reason: str, step: int) -> None:
+            nonlocal force_final, forced_final_reason
+            if force_final:
+                return
+            force_final = True
+            forced_final_reason = forced_final_reason or reason
+            counts["forced_finalizations"] += 1
+            remaining = max(0.0, total_timeout - (time.monotonic() - started))
+            messages.append({
+                "role": "user",
+                "content": (
+                    "Research must stop now. Give the best-supported final answer using only the "
+                    "evidence already collected. Follow the requested answer format, do not describe "
+                    "the research process, and do not call tools."
+                ),
+            })
+            trace.write(
+                "forced_final", step=step, reason=reason,
+                remaining_seconds=round(remaining, 3),
+            )
+
         input_record: dict[str, Any] = {"question": sample.question}
         if sample.video_path:
             input_record["video_path"] = str(sample.video_path)
@@ -175,8 +218,15 @@ def run_sample(
         trace.write("run_start", input=input_record)
         try:
             for step in range(1, max_steps + 1):
-                if time.monotonic() - started >= total_timeout:
+                elapsed = time.monotonic() - started
+                remaining = total_timeout - elapsed
+                if remaining <= 0:
                     raise AgentTimeoutError(f"Reached total timeout of {total_timeout:g} seconds")
+                final_step_start = max(1, max_steps - final_answer_reserve_steps + 1)
+                if not force_final and step >= final_step_start:
+                    enter_forced_final("step_budget", step)
+                elif not force_final and remaining <= finalization_grace:
+                    enter_forced_final("approaching_timeout", step)
                 compacted, chars_before, chars_after = _compact_history(
                     messages, keep_recent_tools, history_search_results, history_page_chars,
                     keep_recent_reasoning,
@@ -188,7 +238,27 @@ def run_sample(
                         chars_removed=max(0, chars_before - chars_after),
                     )
                 call_started = time.monotonic()
-                response = model.generate(messages, [] if force_final else TOOL_DEFINITIONS)
+                request_was_forced_final = force_final
+                counts["model_attempts"] += 1
+                try:
+                    response = _generate_with_deadline(
+                        model, messages, [] if force_final else TOOL_DEFINITIONS,
+                        max(0.1, total_timeout - (time.monotonic() - started)),
+                        disable_retries=forced_final_reason in {"approaching_timeout", "model_error"},
+                    )
+                except Exception as exc:
+                    remaining = total_timeout - (time.monotonic() - started)
+                    trace.write(
+                        "model_error", step=step, error={
+                            "type": type(exc).__name__, "message": str(exc),
+                        }, retrying_as_final=not request_was_forced_final and step < max_steps and remaining > 0,
+                        remaining_seconds=round(max(0.0, remaining), 3),
+                    )
+                    counts["model_errors"] += 1
+                    if not request_was_forced_final and step < max_steps and remaining > 0:
+                        enter_forced_final("model_error", step)
+                        continue
+                    raise
                 latency_ms = round((time.monotonic() - call_started) * 1000)
                 counts["model_calls"] += 1
                 input_tokens += int(response.usage.get("input_tokens", 0))
@@ -210,16 +280,18 @@ def run_sample(
                 if not response.tool_calls:
                     answer = response.text.strip()
                     if not answer:
-                        if counts["empty_answer_retries"] < max_empty_answer_retries:
+                        if counts["empty_answer_retries"] < max_empty_answer_retries and step < max_steps:
                             counts["empty_answer_retries"] += 1
-                            force_final = True
-                            messages.append({
-                                "role": "user",
-                                "content": (
-                                    "Provide the final answer now. Output only the requested answer in the "
-                                    "required format, without additional reasoning, and do not call tools."
-                                ),
-                            })
+                            if not force_final:
+                                enter_forced_final("empty_answer", step)
+                            else:
+                                messages.append({
+                                    "role": "user",
+                                    "content": (
+                                        "Provide the final answer now. Output only the requested answer in the "
+                                        "required format, without additional reasoning, and do not call tools."
+                                    ),
+                                })
                             trace.write(
                                 "empty_answer_retry", step=step,
                                 attempt=counts["empty_answer_retries"],
@@ -230,21 +302,78 @@ def run_sample(
                     trace.write("final_answer", step=step, answer=answer, citations=[], finish_reason=response.finish_reason)
                     break
 
+                if request_was_forced_final:
+                    for call in response.tool_calls:
+                        counts["tool_requests"] += 1
+                        counts["blocked_tool_calls"] += 1
+                        observation = {
+                            "error": "Tools are disabled during forced finalization",
+                            "reason": forced_final_reason,
+                        }
+                        messages.append({
+                            "role": "tool", "tool_call_id": call.id,
+                            "content": json.dumps(observation, ensure_ascii=False),
+                        })
+                        trace.write(
+                            "tool_result", step=step, tool_call_id=call.id, tool=call.name,
+                            success=False, blocked=True, observation=observation,
+                        )
+                    if step < max_steps:
+                        force_final = True
+                        messages.append({
+                            "role": "user",
+                            "content": "Tools remain unavailable. Return the final answer now without any tool calls.",
+                        })
+                        trace.write("forced_final_retry", step=step, reason="model_requested_disabled_tools")
+                        continue
+                    status = "empty_answer"
+                    error = "Model requested tools during the final reserved step"
+                    break
+
                 force_final = False
 
                 visual_messages: list[dict[str, Any]] = []
                 executed_this_step = 0
                 blocked_this_step = 0
+                budget_exhausted_this_step = False
+                invalid_tool_this_step = False
+                deadline_blocked_this_step = False
                 for call in response.tool_calls:
                     counts["tool_requests"] += 1
-                    if time.monotonic() - started >= total_timeout:
+                    remaining = total_timeout - (time.monotonic() - started)
+                    if remaining <= 0:
                         raise AgentTimeoutError(f"Reached total timeout of {total_timeout:g} seconds")
                     if call.name not in budgets:
-                        raise InvalidToolCallError(f"Unknown tool requested: {call.name}")
+                        observation = {"error": f"Unknown tool requested: {call.name}", "allowed_tools": sorted(budgets)}
+                        counts["blocked_tool_calls"] += 1
+                        counts["invalid_tool_calls"] += 1
+                        blocked_this_step += 1
+                        invalid_tool_this_step = True
+                        messages.append({"role": "tool", "tool_call_id": call.id, "content": json.dumps(observation)})
+                        trace.write(
+                            "tool_result", step=step, tool_call_id=call.id, tool=call.name,
+                            success=False, blocked=True, observation=observation,
+                        )
+                        continue
+                    if remaining <= finalization_grace:
+                        observation = {
+                            "error": "Tool call skipped because the sample deadline is approaching",
+                            "remaining_seconds": round(remaining, 3),
+                        }
+                        counts["blocked_tool_calls"] += 1
+                        blocked_this_step += 1
+                        deadline_blocked_this_step = True
+                        messages.append({"role": "tool", "tool_call_id": call.id, "content": json.dumps(observation)})
+                        trace.write(
+                            "tool_result", step=step, tool_call_id=call.id, tool=call.name,
+                            success=False, blocked=True, observation=observation,
+                        )
+                        continue
                     if counts[call.name] >= budgets[call.name]:
                         observation = {"error": f"Budget exhausted for {call.name}", "limit": budgets[call.name]}
                         counts["blocked_tool_calls"] += 1
                         blocked_this_step += 1
+                        budget_exhausted_this_step = True
                         messages.append({"role": "tool", "tool_call_id": call.id, "content": json.dumps(observation)})
                         trace.write("tool_result", step=step, tool_call_id=call.id, tool=call.name, success=False, observation=observation)
                         continue
@@ -313,15 +442,14 @@ def run_sample(
                     consecutive_blocked_steps += 1
                 else:
                     consecutive_blocked_steps = 0
-                if consecutive_blocked_steps >= max_blocked_tool_steps:
-                    force_final = True
-                    messages.append({
-                        "role": "user",
-                        "content": (
-                            "The tool loop guard has stopped repeated research. Give the best-supported "
-                            "final answer now using the evidence already collected. Do not call tools."
-                        ),
-                    })
+                if deadline_blocked_this_step:
+                    enter_forced_final("approaching_timeout", step)
+                elif budget_exhausted_this_step:
+                    enter_forced_final("tool_budget", step)
+                elif invalid_tool_this_step:
+                    enter_forced_final("invalid_tool_call", step)
+                elif consecutive_blocked_steps >= max_blocked_tool_steps:
+                    enter_forced_final("loop_guard", step)
                     trace.write(
                         "loop_guard_final", step=step,
                         consecutive_blocked_steps=consecutive_blocked_steps,
@@ -335,11 +463,16 @@ def run_sample(
 
         total_ms = round((time.monotonic() - started) * 1000)
         trace.write("run_end", status=status, error={"message": error} if error else None, metrics={
-            "total_latency_ms": total_ms, "model_calls": counts["model_calls"], "tool_calls": counts["tool_calls"],
+            "total_latency_ms": total_ms, "model_calls": counts["model_calls"],
+            "model_attempts": counts["model_attempts"], "model_errors": counts["model_errors"],
+            "tool_calls": counts["tool_calls"],
             "text_search_calls": counts["text_search"], "image_search_calls": counts["image_search"],
             "open_page_calls": counts["open_page"], "input_tokens": input_tokens, "output_tokens": output_tokens,
             "tool_requests": counts["tool_requests"], "blocked_tool_calls": counts["blocked_tool_calls"],
-            "tool_errors": counts["tool_errors"], "empty_answer_retries": counts["empty_answer_retries"],
+            "tool_errors": counts["tool_errors"], "invalid_tool_calls": counts["invalid_tool_calls"],
+            "empty_answer_retries": counts["empty_answer_retries"],
+            "forced_finalizations": counts["forced_finalizations"],
+            "forced_final_reason": forced_final_reason or None,
         })
     return {
         "answer": answer, "status": status, "error": error,
@@ -347,4 +480,5 @@ def run_sample(
         "tool_calls": counts["tool_calls"], "text_search_calls": counts["text_search"],
         "image_search_calls": counts["image_search"], "open_page_calls": counts["open_page"],
         "blocked_tool_calls": counts["blocked_tool_calls"],
+        "forced_final_reason": forced_final_reason,
     }

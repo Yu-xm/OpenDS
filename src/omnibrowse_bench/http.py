@@ -49,30 +49,56 @@ def _should_retry_http(status_code: int) -> bool:
     return status_code in {408, 409, 425, 429, 500, 502, 503, 504}
 
 
+def _remaining_timeout(deadline: float, configured_timeout: float, url: str) -> float:
+    remaining = deadline - time.monotonic()
+    if remaining <= 0:
+        raise HttpError(f"Request to {url} exceeded total timeout of {configured_timeout:g} seconds")
+    return max(0.1, remaining)
+
+
+def _wait_before_retry(delay: float, deadline: float, configured_timeout: float, url: str) -> None:
+    remaining = _remaining_timeout(deadline, configured_timeout, url)
+    if delay >= remaining:
+        raise HttpError(f"Request to {url} exceeded total timeout of {configured_timeout:g} seconds")
+    time.sleep(delay)
+
+
 def post_json(
     url: str, payload: dict[str, Any], headers: dict[str, str], timeout: float,
-    max_retries: int = 0, retry_base_seconds: float = 2, retry_max_seconds: float = 60,
+    max_retries: int = 0, retry_base_seconds: float = 2, retry_max_seconds: float = 30,
 ) -> dict[str, Any]:
+    deadline = time.monotonic() + timeout
     for attempt in range(max_retries + 1):
         request = _request(url, payload, headers)
         try:
-            with urllib.request.urlopen(request, timeout=timeout) as response:
+            with urllib.request.urlopen(
+                request, timeout=_remaining_timeout(deadline, timeout, url)
+            ) as response:
                 body = response.read()
             break
         except urllib.error.HTTPError as exc:
             detail = exc.read().decode("utf-8", errors="replace")[:2000]
             if attempt < max_retries and _should_retry_http(exc.code):
-                time.sleep(_retry_delay(exc, attempt, retry_base_seconds, retry_max_seconds))
+                _wait_before_retry(
+                    _retry_delay(exc, attempt, retry_base_seconds, retry_max_seconds),
+                    deadline, timeout, url,
+                )
                 continue
             raise HttpError(f"HTTP {exc.code} from {url}: {detail}", exc.code) from exc
         except urllib.error.URLError as exc:
             if attempt < max_retries:
-                time.sleep(_retry_delay(urllib.error.HTTPError(url, 503, "retry", {}, None), attempt, retry_base_seconds, retry_max_seconds))
+                _wait_before_retry(
+                    _retry_delay(urllib.error.HTTPError(url, 503, "retry", {}, None), attempt, retry_base_seconds, retry_max_seconds),
+                    deadline, timeout, url,
+                )
                 continue
             raise _connection_error(url, exc) from exc
         except (TimeoutError, http.client.RemoteDisconnected, ConnectionError) as exc:
             if attempt < max_retries:
-                time.sleep(_retry_delay(urllib.error.HTTPError(url, 503, "retry", {}, None), attempt, retry_base_seconds, retry_max_seconds))
+                _wait_before_retry(
+                    _retry_delay(urllib.error.HTTPError(url, 503, "retry", {}, None), attempt, retry_base_seconds, retry_max_seconds),
+                    deadline, timeout, url,
+                )
                 continue
             raise _connection_error(url, exc) from exc
     try:
@@ -83,9 +109,10 @@ def post_json(
 
 def post_sse_json(
     url: str, payload: dict[str, Any], headers: dict[str, str], timeout: float,
-    max_retries: int = 0, retry_base_seconds: float = 2, retry_max_seconds: float = 60,
+    max_retries: int = 0, retry_base_seconds: float = 2, retry_max_seconds: float = 30,
 ) -> list[dict[str, Any]]:
     """POST an OpenAI-compatible request and decode its SSE data events."""
+    deadline = time.monotonic() + timeout
     for attempt in range(max_retries + 1):
         request = _request(url, payload, headers)
         events: list[dict[str, Any]] = []
@@ -105,8 +132,11 @@ def post_sse_json(
             return False
 
         try:
-            with urllib.request.urlopen(request, timeout=timeout) as response:
+            with urllib.request.urlopen(
+                request, timeout=_remaining_timeout(deadline, timeout, url)
+            ) as response:
                 for raw_line in response:
+                    _remaining_timeout(deadline, timeout, url)
                     line = raw_line.decode("utf-8", errors="replace").rstrip("\r\n")
                     if not line:
                         if flush_event():
@@ -124,17 +154,26 @@ def post_sse_json(
         except urllib.error.HTTPError as exc:
             detail = exc.read().decode("utf-8", errors="replace")[:2000]
             if attempt < max_retries and _should_retry_http(exc.code):
-                time.sleep(_retry_delay(exc, attempt, retry_base_seconds, retry_max_seconds))
+                _wait_before_retry(
+                    _retry_delay(exc, attempt, retry_base_seconds, retry_max_seconds),
+                    deadline, timeout, url,
+                )
                 continue
             raise HttpError(f"HTTP {exc.code} from {url}: {detail}", exc.code) from exc
         except urllib.error.URLError as exc:
             if attempt < max_retries:
-                time.sleep(_retry_delay(urllib.error.HTTPError(url, 503, "retry", {}, None), attempt, retry_base_seconds, retry_max_seconds))
+                _wait_before_retry(
+                    _retry_delay(urllib.error.HTTPError(url, 503, "retry", {}, None), attempt, retry_base_seconds, retry_max_seconds),
+                    deadline, timeout, url,
+                )
                 continue
             raise _connection_error(url, exc) from exc
         except (TimeoutError, http.client.RemoteDisconnected, ConnectionError) as exc:
             if attempt < max_retries:
-                time.sleep(_retry_delay(urllib.error.HTTPError(url, 503, "retry", {}, None), attempt, retry_base_seconds, retry_max_seconds))
+                _wait_before_retry(
+                    _retry_delay(urllib.error.HTTPError(url, 503, "retry", {}, None), attempt, retry_base_seconds, retry_max_seconds),
+                    deadline, timeout, url,
+                )
                 continue
             raise _connection_error(url, exc) from exc
 

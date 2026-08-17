@@ -11,7 +11,7 @@ from .types import Sample
 RESULT_COLUMNS = [
     "model_answer", "benchmark", "model", "run_id", "status", "latency_s",
     "tool_calls", "text_search_calls", "image_search_calls", "open_page_calls",
-    "blocked_tool_calls", "trace_path", "error",
+    "blocked_tool_calls", "forced_final_reason", "trace_path", "error",
 ]
 
 

@@ -11,7 +11,7 @@ from typing import Any
 from unittest.mock import patch
 
 from omnibrowse_bench.agent import _compact_history, run_sample
-from omnibrowse_bench.http import post_json
+from omnibrowse_bench.http import HttpError, post_json
 from omnibrowse_bench.models import OpenAICompatibleBackend
 from omnibrowse_bench.runner import run
 from omnibrowse_bench.types import ModelResponse, Sample, ToolCall, ToolResult
@@ -58,6 +58,43 @@ class RepeatingSearchBackend:
             text="University of Oxford", usage={"input_tokens": 10, "output_tokens": 3},
             finish_reason="stop",
         )
+
+
+class ResearchThenFinalBackend:
+    display_name = "research-then-final"
+    supports_video = False
+    supports_audio = False
+
+    def __init__(self) -> None:
+        self.tool_sets: list[list[dict[str, Any]]] = []
+
+    def generate(self, messages: list[dict[str, Any]], tools: list[dict[str, Any]]) -> ModelResponse:
+        self.tool_sets.append(list(tools))
+        if tools:
+            return ModelResponse(
+                tool_calls=[ToolCall("search-1", "text_search", {"query": "Oxford source"})],
+                usage={"input_tokens": 5, "output_tokens": 2}, finish_reason="tool_calls",
+            )
+        return ModelResponse(
+            text="University of Oxford", usage={"input_tokens": 7, "output_tokens": 3},
+            finish_reason="stop",
+        )
+
+
+class FailsOnceBackend:
+    display_name = "fails-once"
+    supports_video = False
+    supports_audio = False
+
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def generate(self, messages: list[dict[str, Any]], tools: list[dict[str, Any]]) -> ModelResponse:
+        self.calls += 1
+        if self.calls == 1:
+            raise TimeoutError("temporary model timeout")
+        self.assert_no_tools = tools
+        return ModelResponse(text="University of Oxford", finish_reason="stop")
 
 
 class FakeResponse:
@@ -171,6 +208,41 @@ class PipelineTest(unittest.TestCase):
             self.assertEqual(len(blocked), 1)
             self.assertEqual(events[-1]["metrics"]["tool_requests"], 2)
 
+    def test_last_step_is_reserved_for_final_answer(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            backend = ResearchThenFinalBackend()
+            result = ToolResult({"query": "Oxford source", "results": []}, {"organic": []})
+            with patch("omnibrowse_bench.agent.SerperTools.execute", return_value=result):
+                outcome = run_sample(
+                    Sample("s1", "question", {}, root), "OmniBrowse-Text", "test-run", backend,
+                    [{"role": "user", "content": "question"}], {"api_key": "unused"},
+                    {"max_steps": 2, "final_answer_reserve_steps": 1},
+                    root / "trajectory.jsonl", root / "artifacts",
+                )
+            self.assertEqual(outcome["answer"], "University of Oxford")
+            self.assertEqual(outcome["forced_final_reason"], "step_budget")
+            self.assertTrue(backend.tool_sets[0])
+            self.assertEqual(backend.tool_sets[1], [])
+
+    def test_model_error_gets_one_no_tool_finalization_attempt(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            backend = FailsOnceBackend()
+            trace_path = root / "trajectory.jsonl"
+            outcome = run_sample(
+                Sample("s1", "question", {}, root), "OmniBrowse-Text", "test-run", backend,
+                [{"role": "user", "content": "question"}], {"api_key": "unused"},
+                {"max_steps": 3}, trace_path, root / "artifacts",
+            )
+            self.assertEqual(outcome["answer"], "University of Oxford")
+            self.assertEqual(outcome["forced_final_reason"], "model_error")
+            self.assertEqual(backend.assert_no_tools, [])
+            events = [json.loads(line) for line in trace_path.read_text(encoding="utf-8").splitlines()]
+            self.assertIn("model_error", [event["event"] for event in events])
+            self.assertEqual(events[-1]["metrics"]["model_attempts"], 2)
+            self.assertEqual(events[-1]["metrics"]["model_errors"], 1)
+
     def test_http_429_is_retried_after_retry_after(self) -> None:
         error = urllib.error.HTTPError(
             "https://example.test", 429, "rate limited", {"Retry-After": "0"},
@@ -182,6 +254,16 @@ class PipelineTest(unittest.TestCase):
         self.assertEqual(result, {"ok": True})
         self.assertEqual(request.call_count, 2)
         sleep.assert_called_once_with(0.0)
+
+    def test_retry_wait_cannot_exceed_request_timeout(self) -> None:
+        error = urllib.error.HTTPError(
+            "https://example.test", 429, "rate limited", {},
+            io.BytesIO(b'{"message":"TPM limit reached"}'),
+        )
+        with patch("omnibrowse_bench.http.urllib.request.urlopen", side_effect=error) as request:
+            with self.assertRaisesRegex(HttpError, "exceeded total timeout"):
+                post_json("https://example.test", {}, {}, 10, max_retries=1, retry_max_seconds=30)
+        self.assertEqual(request.call_count, 1)
 
     def test_old_tool_history_is_compacted_deterministically(self) -> None:
         messages = [
