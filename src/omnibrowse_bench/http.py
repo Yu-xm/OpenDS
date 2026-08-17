@@ -2,13 +2,17 @@ from __future__ import annotations
 
 import json
 import http.client
+import time
 import urllib.error
 import urllib.request
+from email.utils import parsedate_to_datetime
 from typing import Any
 
 
 class HttpError(RuntimeError):
-    pass
+    def __init__(self, message: str, status_code: int | None = None):
+        super().__init__(message)
+        self.status_code = status_code
 
 
 def _request(url: str, payload: dict[str, Any], headers: dict[str, str]) -> urllib.request.Request:
@@ -24,18 +28,53 @@ def _connection_error(url: str, exc: BaseException) -> HttpError:
     return HttpError(f"Request to {url} failed: {detail}")
 
 
-def post_json(url: str, payload: dict[str, Any], headers: dict[str, str], timeout: float) -> dict[str, Any]:
-    request = _request(url, payload, headers)
-    try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
-            body = response.read()
-    except urllib.error.HTTPError as exc:
-        detail = exc.read().decode("utf-8", errors="replace")[:2000]
-        raise HttpError(f"HTTP {exc.code} from {url}: {detail}") from exc
-    except urllib.error.URLError as exc:
-        raise _connection_error(url, exc) from exc
-    except (TimeoutError, http.client.RemoteDisconnected, ConnectionError) as exc:
-        raise _connection_error(url, exc) from exc
+def _retry_delay(exc: urllib.error.HTTPError, attempt: int, base_seconds: float, max_seconds: float) -> float:
+    retry_after = exc.headers.get("Retry-After") if exc.headers else None
+    if retry_after:
+        try:
+            return min(max_seconds, max(0.0, float(retry_after)))
+        except ValueError:
+            try:
+                delay = parsedate_to_datetime(retry_after).timestamp() - time.time()
+                return min(max_seconds, max(0.0, delay))
+            except (TypeError, ValueError, OverflowError):
+                pass
+    delay = min(max_seconds, base_seconds * (2 ** attempt))
+    if exc.code == 429:
+        delay = min(max_seconds, max(60.0, delay))
+    return delay
+
+
+def _should_retry_http(status_code: int) -> bool:
+    return status_code in {408, 409, 425, 429, 500, 502, 503, 504}
+
+
+def post_json(
+    url: str, payload: dict[str, Any], headers: dict[str, str], timeout: float,
+    max_retries: int = 0, retry_base_seconds: float = 2, retry_max_seconds: float = 60,
+) -> dict[str, Any]:
+    for attempt in range(max_retries + 1):
+        request = _request(url, payload, headers)
+        try:
+            with urllib.request.urlopen(request, timeout=timeout) as response:
+                body = response.read()
+            break
+        except urllib.error.HTTPError as exc:
+            detail = exc.read().decode("utf-8", errors="replace")[:2000]
+            if attempt < max_retries and _should_retry_http(exc.code):
+                time.sleep(_retry_delay(exc, attempt, retry_base_seconds, retry_max_seconds))
+                continue
+            raise HttpError(f"HTTP {exc.code} from {url}: {detail}", exc.code) from exc
+        except urllib.error.URLError as exc:
+            if attempt < max_retries:
+                time.sleep(_retry_delay(urllib.error.HTTPError(url, 503, "retry", {}, None), attempt, retry_base_seconds, retry_max_seconds))
+                continue
+            raise _connection_error(url, exc) from exc
+        except (TimeoutError, http.client.RemoteDisconnected, ConnectionError) as exc:
+            if attempt < max_retries:
+                time.sleep(_retry_delay(urllib.error.HTTPError(url, 503, "retry", {}, None), attempt, retry_base_seconds, retry_max_seconds))
+                continue
+            raise _connection_error(url, exc) from exc
     try:
         return json.loads(body)
     except json.JSONDecodeError as exc:
@@ -44,49 +83,60 @@ def post_json(url: str, payload: dict[str, Any], headers: dict[str, str], timeou
 
 def post_sse_json(
     url: str, payload: dict[str, Any], headers: dict[str, str], timeout: float,
+    max_retries: int = 0, retry_base_seconds: float = 2, retry_max_seconds: float = 60,
 ) -> list[dict[str, Any]]:
     """POST an OpenAI-compatible request and decode its SSE data events."""
-    request = _request(url, payload, headers)
-    events: list[dict[str, Any]] = []
-    data_lines: list[str] = []
+    for attempt in range(max_retries + 1):
+        request = _request(url, payload, headers)
+        events: list[dict[str, Any]] = []
+        data_lines: list[str] = []
 
-    def flush_event() -> bool:
-        if not data_lines:
+        def flush_event() -> bool:
+            if not data_lines:
+                return False
+            data = "\n".join(data_lines)
+            data_lines.clear()
+            if data == "[DONE]":
+                return True
+            try:
+                events.append(json.loads(data))
+            except json.JSONDecodeError as exc:
+                raise HttpError(f"Invalid SSE JSON from {url}: {data[:500]!r}") from exc
             return False
-        data = "\n".join(data_lines)
-        data_lines.clear()
-        if data == "[DONE]":
-            return True
-        try:
-            events.append(json.loads(data))
-        except json.JSONDecodeError as exc:
-            raise HttpError(f"Invalid SSE JSON from {url}: {data[:500]!r}") from exc
-        return False
 
-    try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
-            for raw_line in response:
-                line = raw_line.decode("utf-8", errors="replace").rstrip("\r\n")
-                if not line:
-                    if flush_event():
-                        break
-                    continue
-                if line.startswith(":"):
-                    continue
-                if line.startswith("data:"):
-                    data_lines.append(line[5:].lstrip())
-            else:
-                flush_event()
-    except urllib.error.HTTPError as exc:
-        detail = exc.read().decode("utf-8", errors="replace")[:2000]
-        raise HttpError(f"HTTP {exc.code} from {url}: {detail}") from exc
-    except urllib.error.URLError as exc:
-        raise _connection_error(url, exc) from exc
-    except (TimeoutError, http.client.RemoteDisconnected, ConnectionError) as exc:
-        raise _connection_error(url, exc) from exc
-    if not events:
-        raise HttpError(f"Empty SSE response from {url}")
-    return events
+        try:
+            with urllib.request.urlopen(request, timeout=timeout) as response:
+                for raw_line in response:
+                    line = raw_line.decode("utf-8", errors="replace").rstrip("\r\n")
+                    if not line:
+                        if flush_event():
+                            break
+                        continue
+                    if line.startswith(":"):
+                        continue
+                    if line.startswith("data:"):
+                        data_lines.append(line[5:].lstrip())
+                else:
+                    flush_event()
+            if not events:
+                raise HttpError(f"Empty SSE response from {url}")
+            return events
+        except urllib.error.HTTPError as exc:
+            detail = exc.read().decode("utf-8", errors="replace")[:2000]
+            if attempt < max_retries and _should_retry_http(exc.code):
+                time.sleep(_retry_delay(exc, attempt, retry_base_seconds, retry_max_seconds))
+                continue
+            raise HttpError(f"HTTP {exc.code} from {url}: {detail}", exc.code) from exc
+        except urllib.error.URLError as exc:
+            if attempt < max_retries:
+                time.sleep(_retry_delay(urllib.error.HTTPError(url, 503, "retry", {}, None), attempt, retry_base_seconds, retry_max_seconds))
+                continue
+            raise _connection_error(url, exc) from exc
+        except (TimeoutError, http.client.RemoteDisconnected, ConnectionError) as exc:
+            if attempt < max_retries:
+                time.sleep(_retry_delay(urllib.error.HTTPError(url, 503, "retry", {}, None), attempt, retry_base_seconds, retry_max_seconds))
+                continue
+            raise _connection_error(url, exc) from exc
 
 
 def get_bytes(url: str, timeout: float, max_bytes: int) -> tuple[bytes, str]:

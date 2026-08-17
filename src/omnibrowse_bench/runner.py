@@ -22,7 +22,10 @@ Use only the supplied text_search, image_search, and open_page tools for web acc
 thorough, autonomous research and use the available tools as you judge appropriate. Inspect
 input media when present, verify the information needed to answer the question, and do not
 fabricate unsupported facts. Decide your own research strategy and continue until you have
-sufficient evidence or the available budget is exhausted.
+sufficient evidence or the available budget is exhausted. Do not repeat an identical or nearly
+identical search. If searching stops producing new evidence, open a promising source, change
+direction materially, or answer from the evidence already collected. Treat search snippets as
+leads; use open_page when a key claim depends on the source's actual contents.
 
 Final-answer format: follow any explicit format requested in the question. Otherwise, output
 only one short English paragraph, normally one to three sentences and no more than 80 words.
@@ -54,6 +57,7 @@ def _unsupported_trace(trace_path: Path, sample: Any, benchmark: str, model_name
         trace.write("run_end", status="unsupported_input", error={"message": reason}, metrics={
             "total_latency_ms": 0, "model_calls": 0, "tool_calls": 0,
             "text_search_calls": 0, "image_search_calls": 0, "open_page_calls": 0,
+            "tool_requests": 0, "blocked_tool_calls": 0, "tool_errors": 0,
             "input_tokens": 0, "output_tokens": 0,
         })
 
@@ -103,7 +107,11 @@ def run(config: dict[str, Any], resume: bool = False, limit: int | None = None) 
         if unsupported:
             reason = f"Model adapter does not declare support for: {', '.join(unsupported)}"
             _unsupported_trace(trace_path, sample, benchmark, model.display_name, run_id, reason)
-            outcome = {"answer": "", "status": "unsupported_input", "error": reason, "latency_s": 0.0, "tool_calls": 0}
+            outcome = {
+                "answer": "", "status": "unsupported_input", "error": reason, "latency_s": 0.0,
+                "tool_calls": 0, "text_search_calls": 0, "image_search_calls": 0,
+                "open_page_calls": 0, "blocked_tool_calls": 0,
+            }
         else:
             try:
                 messages = initial_messages(sample.question, sample.video_path, sample.audio_path, prompt, max_media_bytes)
@@ -114,12 +122,21 @@ def run(config: dict[str, Any], resume: bool = False, limit: int | None = None) 
             except (OSError, ValueError) as exc:
                 reason = f"{type(exc).__name__}: {exc}"
                 _unsupported_trace(trace_path, sample, benchmark, model.display_name, run_id, reason)
-                outcome = {"answer": "", "status": "unsupported_input", "error": reason, "latency_s": 0.0, "tool_calls": 0}
+                outcome = {
+                    "answer": "", "status": "unsupported_input", "error": reason, "latency_s": 0.0,
+                    "tool_calls": 0, "text_search_calls": 0, "image_search_calls": 0,
+                    "open_page_calls": 0, "blocked_tool_calls": 0,
+                }
         row = dict(sample.row)
         row.update({
             "model_answer": outcome["answer"], "benchmark": benchmark, "model": model.display_name,
             "run_id": run_id, "status": outcome["status"], "latency_s": str(outcome["latency_s"]),
-            "tool_calls": str(outcome["tool_calls"]), "trace_path": str(trace_path), "error": outcome["error"],
+            "tool_calls": str(outcome["tool_calls"]),
+            "text_search_calls": str(outcome["text_search_calls"]),
+            "image_search_calls": str(outcome["image_search_calls"]),
+            "open_page_calls": str(outcome["open_page_calls"]),
+            "blocked_tool_calls": str(outcome["blocked_tool_calls"]),
+            "trace_path": str(trace_path), "error": outcome["error"],
         })
         rows.append(row)
         write_predictions(predictions_path, rows, source_fields)

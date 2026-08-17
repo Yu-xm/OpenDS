@@ -73,6 +73,8 @@ export MODEL_API_KEY="..."
 
 对于持续数分钟的推理模型，可在 `model.parameters` 中设置 `"stream": true`。runner 会解析 OpenAI-compatible SSE，持续接收 `content`、`reasoning_content` 和分片 function call，从而避免非流式请求长时间无数据时被服务商网关断开。流式响应会组装为统一的模型响应 artifact。
 
+模型请求遇到 HTTP 429、部分 5xx 或临时连接错误时默认最多重试 3 次。429 若没有服务端 `Retry-After`，默认等待 60 秒；可通过模型配置中的 `max_retries`、`retry_base_seconds` 和 `retry_max_seconds` 调整。单次 Serper 工具失败不会在 HTTP 层自动重试，而是作为可观察的失败工具结果交还模型，避免不透明地增加搜索调用数。
+
 ### Bridge 请求协议
 
 框架向 `model.endpoint` POST：
@@ -193,6 +195,20 @@ results/
 这是 **observable agent trajectory**。如果兼容 API 明确返回 `reasoning_content`，框架会将其保存并在多轮调用中原样传回；它不会把思考内容当作最终答案。框架不会记录 API key，也不会尝试访问服务端未返回的隐藏状态。原始模型响应另存为 artifact，并在事件中记录路径和哈希。
 
 推理模型如果以 `stop` 或 `length` 结束但没有返回正文，runner 默认会追加一次不带工具的统一最终回答请求。可用 `agent.max_empty_answer_retries` 调整；正式比较时应对所有模型固定为相同值。
+
+### 防止搜索循环和 TPM 膨胀
+
+Prompt 会要求模型避免重复搜索，但 runner 还提供确定性的框架级保护，默认行为如下：
+
+- 完全相同的工具参数只实际执行 1 次；之后返回 `Tool loop prevented`。
+- 同一种搜索已有 3 个高度相似查询后，继续提交相似查询会被拦截。
+- 连续进行 8 次搜索却没有 `open_page` 后，新的搜索会被拦截，并提示模型打开已有结果或作答。
+- 连续 2 个步骤只有被拦截的调用时，下一轮关闭工具并要求基于已有证据给出答案。
+- 只保留最近 4 个完整工具观察；更早的搜索结果确定性缩减到前 2 条、页面正文缩减到 2000 字符，并移除较早的 provider reasoning。完整观察仍保存在 JSONL 和 artifact 中。
+
+对应配置项为 `max_identical_tool_calls`、`max_similar_searches`、`similar_search_threshold`、`max_searches_without_open`、`max_blocked_tool_steps`、`keep_recent_tool_observations`、`history_search_results`、`history_page_chars` 和 `keep_recent_reasoning_messages`。这些参数会写入 `run_config.json`；正式对比时必须对所有模型保持一致。
+
+`predictions.csv` 会分别写入 `tool_calls`（实际执行总数）、`text_search_calls`、`image_search_calls`、`open_page_calls` 和 `blocked_tool_calls`。模型发起但被循环保护或预算限制拦截的调用只计入 `blocked_tool_calls`，不计入实际 Serper 调用数。轨迹的 `run_end.metrics` 还会记录 `tool_requests` 和 `tool_errors`。
 
 ## 6. 公平性约束
 

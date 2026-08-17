@@ -15,6 +15,9 @@
       "Authorization": "Bearer ${MODEL_API_KEY}"
     },
     "timeout_seconds": 1800,
+    "max_retries": 3,
+    "retry_base_seconds": 2,
+    "retry_max_seconds": 60,
     "parameters": {
       "temperature": 0,
       "max_output_tokens": 4096
@@ -37,7 +40,16 @@
     "max_page_opens": 15,
     "max_media_bytes": 100000000,
     "timeout_seconds": 3600,
-    "max_empty_answer_retries": 1
+    "max_empty_answer_retries": 1,
+    "max_identical_tool_calls": 1,
+    "max_similar_searches": 3,
+    "similar_search_threshold": 0.82,
+    "max_searches_without_open": 8,
+    "max_blocked_tool_steps": 2,
+    "keep_recent_tool_observations": 4,
+    "history_search_results": 2,
+    "history_page_chars": 2000,
+    "keep_recent_reasoning_messages": 2
   },
   "output_root": "../results"
 }

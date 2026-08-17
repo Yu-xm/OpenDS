@@ -46,6 +46,9 @@ class BridgeBackend:
         self.model_id = config["model_id"]
         self.endpoint = config["endpoint"]
         self.timeout = float(config.get("timeout_seconds", 300))
+        self.max_retries = int(config.get("max_retries", 3))
+        self.retry_base_seconds = float(config.get("retry_base_seconds", 2))
+        self.retry_max_seconds = float(config.get("retry_max_seconds", 60))
         self.headers = dict(config.get("headers", {}))
         self.parameters = dict(config.get("parameters", {}))
 
@@ -53,7 +56,7 @@ class BridgeBackend:
         raw = post_json(self.endpoint, {
             "model": self.model_id, "messages": messages, "tools": tools,
             "tool_choice": "auto", "parameters": self.parameters,
-        }, self.headers, self.timeout)
+        }, self.headers, self.timeout, self.max_retries, self.retry_base_seconds, self.retry_max_seconds)
         calls = []
         for item in raw.get("tool_calls", []):
             arguments = item.get("arguments", {})
@@ -76,6 +79,9 @@ class OpenAICompatibleBackend:
         self.base_url = config["base_url"].rstrip("/")
         self.api_key = config.get("api_key", "")
         self.timeout = float(config.get("timeout_seconds", 300))
+        self.max_retries = int(config.get("max_retries", 3))
+        self.retry_base_seconds = float(config.get("retry_base_seconds", 2))
+        self.retry_max_seconds = float(config.get("retry_max_seconds", 60))
         self.parameters = dict(config.get("parameters", {}))
 
     def _content(self, content: Any) -> Any:
@@ -164,9 +170,15 @@ class OpenAICompatibleBackend:
             payload.update({"tools": tools, "tool_choice": "auto"})
         endpoint = f"{self.base_url}/chat/completions"
         if payload.get("stream"):
-            raw = self._assemble_stream(post_sse_json(endpoint, payload, headers, self.timeout))
+            raw = self._assemble_stream(post_sse_json(
+                endpoint, payload, headers, self.timeout, self.max_retries,
+                self.retry_base_seconds, self.retry_max_seconds,
+            ))
         else:
-            raw = post_json(endpoint, payload, headers, self.timeout)
+            raw = post_json(
+                endpoint, payload, headers, self.timeout, self.max_retries,
+                self.retry_base_seconds, self.retry_max_seconds,
+            )
         choice = raw["choices"][0]
         message = choice.get("message", {})
         calls: list[ToolCall] = []
