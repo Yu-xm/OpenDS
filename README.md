@@ -1,0 +1,216 @@
+# OmniBrowse Bench
+
+一个尽量小的 Controlled / Live Search benchmark runner。它把两种数据集、不同模型和每次实验统一到同一条执行链：
+
+```text
+CSV + 可选视频/音频
+        ↓
+统一模型接口（不启用厂商内置搜索）
+        ↓
+Serper: text_search / image_search / open_page
+        ↓
+predictions.csv + 每题 observable trajectory.jsonl + 原始 artifacts
+```
+
+主榜只适用于能关闭 native search、接受本框架三个函数工具的模型。只能使用厂商私有搜索的产品应放入单独的 Native/Uncontrolled 对照，不应和 Controlled Serper 结果混排。
+
+## 1. 环境
+
+只需要 Python 3.10+，运行时没有第三方依赖：
+
+```bash
+cd omnibrowse-bench
+python3 -m venv .venv
+source .venv/bin/activate
+python3 -m pip install -e .
+```
+
+也可以不安装，直接设置源码路径运行：
+
+```bash
+PYTHONPATH=src python3 -m omnibrowse_bench.cli --config configs/mock-text.json
+```
+
+## 2. 输入 CSV
+
+`OmniBrowse-Text` 至少包含：
+
+```csv
+id,question,gold_answer
+text_001,Who published the report?,Example Institute
+```
+
+`OmniBrowse` 至少包含：
+
+```csv
+id,question,video_path,audio_path,gold_answer
+omni_001,Who published the report?,media/001.mp4,media/001.wav,Example Institute
+```
+
+媒体路径相对于 CSV 所在目录解析。`id` 必须唯一。框架不会修改源 CSV。
+
+## 3. 配置模型
+
+复制一个配置文件并填写：
+
+- `configs/openai-compatible-text.json`：OpenAI-compatible `/chat/completions`，适用于很多自部署服务和兼容 API。
+- `configs/bridge-omni.json`：统一 HTTP bridge，适用于官方 Claude、Gemini 等非兼容 API，也适用于你自己的推理服务。
+- `configs/mock-text.json`：不联网，只检查整条保存流程。
+
+设置密钥：
+
+```bash
+export SERPER_API_KEY="..."
+export MODEL_API_KEY="..."
+```
+
+配置中的 `${ENV_NAME}` 会在内存中展开；写入 `run_config.json` 前，key/token/secret/password 字段会被替换为 `[REDACTED]`。
+配置中的数据集和输出路径相对于该 JSON 配置文件所在目录解析，因此可以从任意工作目录启动命令。
+
+### OpenAI-compatible 注意事项
+
+该适配器会发送标准 function calling。文本和图片兼容性通常较好；音频被编码为 `input_audio`，视频被编码为 `video_url` data URL。不同兼容服务对音视频字段支持并不一致。如果某个官方 API 的格式不同，请使用 bridge，而不要修改 benchmark 核心循环。
+
+### Bridge 请求协议
+
+框架向 `model.endpoint` POST：
+
+```json
+{
+  "model": "provider-model-id",
+  "messages": [
+    {
+      "role": "user",
+      "content": [
+        {"type": "text", "text": "question"},
+        {"type": "video", "mime_type": "video/mp4", "data_base64": "...", "filename": "x.mp4"},
+        {"type": "audio", "mime_type": "audio/wav", "data_base64": "...", "filename": "x.wav"}
+      ]
+    }
+  ],
+  "tools": [],
+  "tool_choice": "auto",
+  "parameters": {"temperature": 0}
+}
+```
+
+bridge 必须统一返回以下格式之一。
+
+请求工具：
+
+```json
+{
+  "text": "",
+  "tool_calls": [
+    {"id": "call_1", "name": "text_search", "arguments": {"query": "..."}}
+  ],
+  "usage": {"input_tokens": 100, "output_tokens": 20},
+  "finish_reason": "tool_calls"
+}
+```
+
+最终回答：
+
+```json
+{
+  "text": "final answer",
+  "tool_calls": [],
+  "usage": {"input_tokens": 500, "output_tokens": 50},
+  "finish_reason": "stop"
+}
+```
+
+bridge 的职责仅是格式转换：把同样的媒体、消息和 function tools 传给模型，再把模型响应转换回来。不要在 bridge 内增加搜索、转录、OCR 或额外模型，否则不同模型获得的能力不再一致。
+
+## 4. 运行
+
+先验证保存流程：
+
+```bash
+PYTHONPATH=src python3 -m omnibrowse_bench.cli \
+  --config configs/mock-text.json
+```
+
+正式运行：
+
+```bash
+PYTHONPATH=src python3 -m omnibrowse_bench.cli \
+  --config configs/my-run.json
+```
+
+只跑前两题：
+
+```bash
+PYTHONPATH=src python3 -m omnibrowse_bench.cli \
+  --config configs/my-run.json --limit 2
+```
+
+断点续跑需要配置固定的 `run_id`，然后加入 `--resume`。已有 trace 且已有 prediction 的题会被跳过：
+
+```json
+{"run_id": "paper_run_01"}
+```
+
+```bash
+PYTHONPATH=src python3 -m omnibrowse_bench.cli \
+  --config configs/my-run.json --resume
+```
+
+## 5. 输出
+
+```text
+results/
+└── OmniBrowse/
+    └── model-name/
+        └── run-id/
+            ├── predictions.csv
+            ├── run_config.json
+            ├── trajectories/
+            │   └── sample-id.jsonl
+            └── artifacts/
+                └── sample-id/
+                    ├── text_search_call-id.json
+                    ├── open_page_call-id.json
+                    └── image_call-id_01.jpg
+```
+
+`OmniBrowse-Text` 自动写入单独的顶层目录。每个 JSONL 事件都冗余写入 `run_id`、`benchmark`、`model` 和 `sample_id`。
+
+轨迹事件为：
+
+- `run_start`：问题及媒体路径
+- `model_response`：API 可见文本、工具调用、token、延迟
+- `tool_start`：工具参数
+- `tool_result`：实际传给模型的标准化观察、原始 artifact 路径与哈希
+- `final_answer`：最终答案
+- `run_end`：状态、总用时、调用次数与 token
+
+这是 **observable agent trajectory**，不是隐藏 chain-of-thought。框架不会记录 API key，也不会要求模型暴露内部推理。
+
+## 6. 公平性约束
+
+正式比较时固定以下配置，并把生成的 `run_config.json` 和结果一起保存：
+
+- 同一个 Serper key/account 与 Search/Images/Scrape 后端
+- 相同 `gl`、`hl`、结果数和正文截断长度
+- 相同三种工具定义与调用预算
+- 相同最大 agent steps、温度和输出上限
+- OmniBrowse 输入完全相同的视频、音频和问题
+- OmniBrowse-Text 只移除初始音视频，其他条件不变
+- 不支持必需输入模态的模型标记 `unsupported_input` 或 N/A，不私自追加转录/OCR
+
+`run_config.json` 会额外记录数据集绝对路径与 SHA-256、系统提示哈希、Python 版本、框架版本、Git commit（若可用）和起止时间，便于之后核对实验。
+
+## 7. 状态字段
+
+当前 runner 会产生：
+
+- `success`
+- `empty_answer`
+- `invalid_tool_call`
+- `max_steps`
+- `api_error`
+- `timeout`
+- `unsupported_input`
+
+单次搜索或抓取失败会作为失败的 `tool_result` 返回模型，模型仍可改写查询继续研究；如果模型最终作答，整题仍可成功，同时轨迹完整保留该工具错误。

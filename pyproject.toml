@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "omnibrowse-bench"
+version = "0.1.0"
+description = "A small controlled-search runner for OmniBrowse and OmniBrowse-Text."
+requires-python = ">=3.10"
+dependencies = []
+
+[project.scripts]
+omnibrowse-bench = "omnibrowse_bench.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
