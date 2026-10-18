@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="280" viewBox="0 0 1120 280" role="img" aria-labelledby="title desc">
+  <title id="title">OpenDS-World evaluation workflow</title>
+  <desc id="desc">A benchmark case enters a research agent, which collects search, browser, video, and file evidence. Completed observations form a durable trace used for tool-free finalization and predictions.</desc>
+  <defs>
+    <linearGradient id="bg" x2="1" y2="1"><stop stop-color="#0b1530"/><stop offset="1" stop-color="#111b35"/></linearGradient>
+    <linearGradient id="line" x2="1"><stop stop-color="#5cc7f0"/><stop offset="1" stop-color="#9a8bff"/></linearGradient>
+    <marker id="arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0 0 L9 4.5 L0 9 Z" fill="#7089b0"/></marker>
+  </defs>
+  <rect width="1120" height="280" rx="22" fill="url(#bg)"/>
+  <path d="M0 11 H1120" stroke="url(#line)" stroke-width="3"/>
+  <text x="34" y="49" fill="#e9f2ff" font-family="Arial,sans-serif" font-size="20" font-weight="700">One case. A complete research trail.</text>
+  <text x="34" y="74" fill="#9db2ce" font-family="Arial,sans-serif" font-size="13">The answer is only one part of the result; observations and stop reasons stay inspectable.</text>
+  <g font-family="Arial,sans-serif">
+    <rect x="34" y="108" width="215" height="119" rx="15" fill="#16233d" stroke="#2a4565"/>
+    <text x="54" y="139" fill="#5dd0f3" font-size="13" font-weight="700">01  /  INPUT</text>
+    <text x="54" y="171" fill="#f4f8ff" font-size="18" font-weight="700">Benchmark case</text>
+    <text x="54" y="197" fill="#aebed3" font-size="13">Question · optional video</text>
+    <rect x="314" y="108" width="215" height="119" rx="15" fill="#16233d" stroke="#2a4565"/>
+    <text x="334" y="139" fill="#5dd0f3" font-size="13" font-weight="700">02  /  RESEARCH</text>
+    <text x="334" y="171" fill="#f4f8ff" font-size="18" font-weight="700">Agent + budgets</text>
+    <text x="334" y="197" fill="#aebed3" font-size="13">Tools · deadline · context</text>
+    <rect x="594" y="108" width="215" height="119" rx="15" fill="#16233d" stroke="#4b4685"/>
+    <text x="614" y="139" fill="#b3a2ff" font-size="13" font-weight="700">03  /  EVIDENCE</text>
+    <text x="614" y="171" fill="#f4f8ff" font-size="18" font-weight="700">Durable trace</text>
+    <text x="614" y="197" fill="#aebed3" font-size="13">Web · browser · video · files</text>
+    <rect x="874" y="108" width="212" height="119" rx="15" fill="#16233d" stroke="#3e786f"/>
+    <text x="894" y="139" fill="#6be0bd" font-size="13" font-weight="700">04  /  RESULT</text>
+    <text x="894" y="171" fill="#f4f8ff" font-size="18" font-weight="700">Final answer</text>
+    <text x="894" y="197" fill="#aebed3" font-size="13">Status · prediction · artifacts</text>
+  </g>
+  <g fill="none" stroke="#7089b0" stroke-width="2" marker-end="url(#arrow)"><path d="M257 168 H302"/><path d="M537 168 H582"/><path d="M817 168 H862"/></g>
+  <text x="34" y="255" fill="#8197b8" font-family="Arial,sans-serif" font-size="12">Completed observations are preserved before tool-free finalization.</text>
+</svg>

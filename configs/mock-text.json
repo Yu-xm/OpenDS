@@ -1,0 +1,10 @@
+{
+  "benchmark": "OpenDS-World-Text",
+  "run_id": "mock-smoke",
+  "dataset": {"path": "../examples/opends_world_text.csv", "version": "demo"},
+  "model": {"adapter": "mock", "name": "mock-model"},
+  "search": {"api_key": "unused-by-mock"},
+  "toolbox": {"enabled": false},
+  "agent": {"timeout_seconds": 60, "max_tool_calls": 1},
+  "output_root": "../results"
+}

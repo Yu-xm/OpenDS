@@ -1,0 +1,67 @@
+benchmark: OpenDS-World-Text
+run_id: replace-with-a-unique-run-id
+output_root: results
+
+dataset:
+  path: ${BENCHMARK_DATASET_CSV} # Final 200-case CSV; the obsolete 500-case export was removed.
+  version: final-200
+  expected_count: 200
+  input_video: true
+  input_video_dir: ${BENCHMARK_VIDEO_DIR}
+  input_video_subtitles: null # Set to a Parquet file aligned with the final 200 IDs if available.
+  input_video_id_width: 3 # For numeric CSV IDs: 58 maps to 058.mp4. Adjust to the final CSV.
+  columns:
+    id: id
+    question: question
+    answer: answer
+
+model:
+  name: ${MODEL_ID}
+  base_url: ${MODEL_BASE_URL}
+  api_key: ${MODEL_API_KEY}
+
+search:
+  api_key: ${SERPER_API_KEY}
+  timeout_seconds: 180
+  attempt_timeout_seconds: 20
+  max_retries: 5
+
+toolbox:
+  enabled: true
+  browser_image: toolbox-browser:pdf-v1
+  youtube_cache_dir: .cache/toolbox/youtube
+  browser_navigation_attempts: 6
+  # YouTube 搜索/下载直接可用时无需 Cookie，保持 null；仅遇登录/验证要求时再配置。
+  youtube_cookie_file: null # Netscape cookies.txt 路径；填写后每次使用，并非失败后才启用。
+  subtitle_max_entries: 50
+  # ASR 和 MinerU CPU 默认关闭；准备好外部服务或镜像与权重后再启用。
+  # TXT/CSV/JSON/图片等原生读取仍可用。未配置转换器的文件返回不支持及 warning。
+  file_readers:
+    asr:
+      enabled: false
+      # 启用时填写 base_url、model、api_key_env（无需鉴权可省略）。
+      # 常规兼容接口：request_format: multipart，上传 file。
+      # OpenRouter：request_format: json，发送 input_audio 的 base64 与 format。
+      # 两种都请求 <base_url>/audio/transcriptions，并要求 JSON 响应含 text。
+      # base_url: https://openrouter.ai/api/v1
+      # model: replace-with-ASR-model-id
+      # api_key_env: OPENROUTER_API_KEY
+      # request_format: json
+    mineru:
+      enabled: false # Enable after preparing the CPU image and model weights.
+      base_url: http://127.0.0.1:18000
+      parameters: {backend: pipeline, lang_list: [en]}
+      docker:
+        enabled: true # 默认管理共享 CPU 容器；连接外部服务时设 false。
+        image: mineru-cpu:3.4.4
+        pipeline_models_dir: models/mineru/pipeline # 预先下载的权重目录，不是 PDF/缓存目录。
+
+agent:
+  timeout_seconds: 3600 # 每个 case 的研究时限 1 小时，包含容器启动、模型和工具执行；收尾另行进行。
+  finalization_max_tokens: 5000 # 研究结束后独立收尾；思考与答案共用 token 预算，不设生成总时限。
+  finalization_temperature: 0 # 收尾使用贪心解码以减少补跑差异；null 则沿用模型采样参数。
+  finalization_answer_tokens: 1000 # 5000 总预算中，为必要的第二次直接回答保留的 token。
+  finalization_parameters: {} # Add model-specific options when needed.
+  finalization_fallback_parameters: {}
+  max_context_images: 250 # 每次模型请求的图片总数上限；所有工具和视频帧共用，保留最新图片。
+  max_tool_calls: 100 # 所有工具累计执行次数；失败执行也计数，内部网络重试不额外计数。

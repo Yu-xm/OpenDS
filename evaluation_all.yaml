@@ -1,0 +1,152 @@
+# Full configuration reference. Values are runtime defaults unless marked example.
+# evaluation.yaml remains the concise working configuration; this file documents defaults/examples.
+benchmark: OpenDS-World-Text
+run_id: replace-with-a-unique-run-id # Explicit ID required for --index.
+output_root: results
+dataset:
+  path: ${BENCHMARK_DATASET_CSV} # Final 200-case CSV; supply this file separately.
+  version: final-200 # metadata
+  expected_count: 200 # Reject obsolete or incomplete case exports.
+  input_video: true # example; default: auto-detect explicit input-video columns
+  input_video_dir: ${BENCHMARK_VIDEO_DIR} # example; default: null
+  input_video_subtitles: null # Optional matching subtitle Parquet; default: null
+  input_video_id_width: 3 # example; default: 0
+  validate_input_videos: true
+  columns:
+    id: id
+    question: question
+    answer: answer # example; default: gold_answer
+    video: video_path
+    audio: audio_path
+    # input_video: video_filename # optional filename column instead of ID convention
+model:
+  adapter: openai_compatible # alternatively bridge or mock
+  name: ${MODEL_ID}
+  base_url: ${MODEL_BASE_URL}
+  api_key: ${MODEL_API_KEY}
+  supports_video: false
+  supports_audio: false
+  timeout_seconds: 300
+  max_retries: 2
+  retry_base_seconds: 2
+  retry_max_seconds: 30
+  parameters: {} # Passed through, e.g. {max_tokens: 4096, reasoning_effort: medium, temperature: 0.2}
+  # bridge adapter only: endpoint, headers: {}, supports_video/audio default true
+search:
+  provider: serper
+  api_key: ${SERPER_API_KEY}
+  text_endpoint: https://google.serper.dev/search
+  image_endpoint: https://google.serper.dev/images
+  scrape_endpoint: https://scrape.serper.dev
+  gl: us
+  hl: en
+  num_results: 10
+  timeout_seconds: 30
+  attempt_timeout_seconds: 30 # default: timeout_seconds
+  max_retries: 0
+  retry_base_seconds: 2
+  retry_max_seconds: 30
+  max_page_chars: 20000
+  download_images: true
+  image_download_count: 3
+  max_image_bytes: 8000000
+toolbox:
+  enabled: true # example; default: false
+  browser_image: toolbox-browser:pdf-v1
+  youtube_image: toolbox-youtube:latest
+  docker_command: docker
+  docker_host: null
+  container_network: null
+  proxy_server: null
+  youtube_cache_dir: .cache/toolbox/youtube # recommended shared path; default: task-local cache
+  youtube_cookie_file: null # 直接可用就不填；遇登录/验证要求再提供 Netscape cookies.txt。配置后始终使用，不是 fallback。
+  browser_navigation_attempts: 6
+  subtitle_max_entries: 50 # First subtitle entries in the requested time range.
+  file_readers:
+    # 评估默认开启 MinerU CPU、关闭 ASR；不用某个服务时设 enabled:false，原生读取不受影响。
+    cache_dir: .cache/toolbox/files
+    text:
+      # 字符数/行数/匹配数必须为正整数；max_output_chars >=32；仅超时允许正小数。
+      max_chars: 10000 # Unicode characters, not model-specific token estimation
+      preview_chars: 3000
+      max_matches: 50 # first matching lines, not occurrences
+      max_lines: 100 # maximum per inclusive line-range request
+      max_output_chars: 3000 # regex/line output character cap
+      regex_timeout_seconds: 10
+    asr:
+      enabled: false # optional; warn and return unsupported if unusable
+      base_url: null # OpenRouter: https://openrouter.ai/api/v1; compatible local: http://host:8010/v1
+      model: null
+      api_key: null
+      api_key_env: OPENROUTER_API_KEY # optional env lookup; absence does not fail config loading
+      headers: {} # e.g. HTTP-Referer and X-OpenRouter-Title
+      request_format: multipart # 两种均请求 /audio/transcriptions：multipart 上传 file；OpenRouter 用 json/input_audio(base64+format)。响应须为 JSON {text: ...}。
+      check_on_start: true # lazy preflight before first audio read, GET /models
+      health_timeout_seconds: 10
+      timeout_seconds: 600
+      chunk_seconds: 300 # ffmpeg mono 16kHz WAV segments; null = upload original whole file
+      parameters:
+        language: null # ISO language code; null fields not sent
+        prompt: null # multipart provider hint; OpenRouter uses provider.options instead
+        temperature: null
+        response_format: json # converter needs a JSON response containing text
+        timestamp_granularities: null # provider-specific; usually [segment] or [word]
+        provider: null # OpenRouter example: {options: {openai: {prompt: "Names and terminology"}}}
+    mineru:
+      enabled: true # evaluation default; omitting the optional mineru section disables it
+      base_url: http://127.0.0.1:18000
+      api_key: null
+      api_key_env: MINERU_API_KEY
+      headers: {}
+      check_on_start: true # lazy GET /health
+      health_timeout_seconds: 10
+      timeout_seconds: 600
+      parameters:
+        # Provider options: omitted fields use the service's own defaults.
+        backend: pipeline # CPU 示例，与 mineru-cpu:3.4.4 配合使用。
+        parse_method: auto
+        lang_list: [en] # example; service default may be [ch]
+        formula_enable: true
+        table_enable: true
+        image_analysis: true
+        effort: medium
+        server_url: null # optional remote VLM for vlm-http-client/hybrid-http-client
+        start_page_id: 0
+        end_page_id: 99999
+        return_md: true # required/forced by this reader
+        return_images: false
+        return_middle_json: false
+        return_model_output: false
+        return_content_list: false
+        return_original_file: false
+        client_side_output_generation: false
+        response_format_zip: false # required/forced by this reader
+      docker:
+        enabled: true # evaluation default; false = connect to an existing service
+        command: docker
+        name: opends-world-mineru
+        image: mineru-cpu:3.4.4
+        args: null # preserve image ENTRYPOINT/CMD; optional list overrides CMD only
+        pipeline_models_dir: models/mineru/pipeline # 含 models/ 子目录的 pipeline 权重根目录；相对 YAML 解析，省略时为 null。
+        vlm_models_dir: null # optional VLM weights; not required for CPU pipeline
+        publish: 127.0.0.1:18000:8000
+        data_dir: .cache/toolbox/files/mineru-service
+        gpus: null # explicit GPU selection only, do not default to all
+        startup_timeout_seconds: 300
+        command_timeout_seconds: 60
+agent:
+  max_media_bytes: 100000000
+  timeout_seconds: 3600 # 每个 case 的研究时限 1 小时，包含容器启动、模型和工具执行；收尾另行进行。
+  finalization_max_tokens: 5000 # 研究结束后独立收尾；思考与答案共用 token 预算，不设生成总时限。
+  finalization_temperature: 0 # 收尾使用贪心解码以减少补跑差异；null 则沿用模型采样参数。
+  finalization_answer_tokens: 1000 # 总生成预算内留给必要的第二次请求；0 可关闭。
+  finalization_parameters: {} # Qwen 直接收尾可用 {chat_template_kwargs: {enable_thinking: false}}
+  finalization_fallback_parameters: {} # Qwen 可用 {chat_template_kwargs: {enable_thinking: false}}
+  max_context_images: 250 # 搜索图片、截图、文件图片和视频帧共用上限；超出时移除最旧图片的上下文内容。
+  max_tool_calls: 100 # 所有工具累计执行次数；失败执行也计数，内部网络重试不额外计数。
+  max_empty_answer_retries: 1
+  keep_recent_tool_observations: 4
+  history_search_results: 2
+  history_page_chars: 2000
+  keep_recent_reasoning_messages: 2
+  # system_prompt: override the built-in DEFAULT_PROMPT from src/opends_world/runner.py

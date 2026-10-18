@@ -1,0 +1,17 @@
+__pycache__/
+.DS_Store
+.ruff_cache/
+*.py[cod]
+*.egg-info/
+.venv/
+results/
+/trajectories/
+/models/mineru/
+examples/media/
+.cache/
+.tmp/
+data/
+logs/
+outputs/
+run/
+secrets/
