@@ -24,14 +24,6 @@
 
 **OpenDS-World** is a benchmark for deep search on the open Web, with 200 tasks across eight domains. Agents retrieve, access, and integrate multimodal evidence in real-world Web environments to answer factual questions.
 
-| **200** tasks | **8** domains | **12** models | **1,000** human attempts |
-| :---: | :---: | :---: | :---: |
-| Independently verified evidence and answers | From culture and history to science and technology | Evaluated under a shared protocol | Five independent solvers per task |
-
-| Diverse modalities | Heterogeneous formats | Interactive access |
-| --- | --- | --- |
-| Connect clues across text, images, audio, and video. | Follow evidence through webpages, documents, media, and structured datasets. | Navigate interfaces, inspect visual scenes, adjust filters, and retrieve resources. |
-
 <a id="benchmark-results"></a>
 
 ## 📊 Benchmark Results
