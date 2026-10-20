@@ -322,7 +322,7 @@ def run_sample(
                 cleanup_errors = list(getattr(runtime, "cleanup_errors", []))
                 infrastructure_failures.extend(f"Toolbox cleanup: {e}" for e in cleanup_errors)
                 trace.write("toolbox_closed", latency_ms=cleanup_ms, cleanup_errors=cleanup_errors)
-        if infrastructure_failures:
+        if reason == "infrastructure_error":
             if status == "success":
                 status = "infrastructure_error"
             error = "; ".join(dict.fromkeys(([error] if error else []) + infrastructure_failures))

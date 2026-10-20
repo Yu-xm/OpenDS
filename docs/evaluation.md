@@ -26,7 +26,7 @@ The default harness already exports this format. For your own harness, write a U
 | `question` | Original task question. |
 | `gold_answer` | Matching reference answer, joined only after answer generation. |
 | `model_answer` | Final agent answer; leave empty if unanswered. |
-| `status` | `success` for completed execution; retain a failure status otherwise. |
+| `status` | Overall task execution status. |
 | `dataset` | Optional dataset label for grouped statistics. |
 | `error` | Optional execution failure details. |
 
@@ -38,6 +38,14 @@ example-001,What is two plus two?,4,Four,success,format-example,
 ```
 
 Keep reference answers out of the solving agent's inputs. Export all 200 tasks for a full benchmark result; omitted tasks are not automatically added to the denominator by the judge. Join references by task ID, not row order.
+
+### Execution status and tool failures
+
+For an external harness, use `success` when the task run completes normally, including after recoverable tool failures. Preserve a failure status when the task run itself fails. `status` does not encode whether the answer is correct.
+
+The default harness records tool failures separately from task completion. The existing `trace_path` points to per-task traces containing tool failure details, cleanup events, and error counts. The CSV `error` field describes overall execution failures. A completed answer can have `status=success` alongside these diagnostics. Failures that interrupt the overall research runtime, such as toolbox startup failure, still produce `infrastructure_error`. Review diagnostics when reporting results.
+
+The judge receives the execution status and error alongside the answer. Its prompt treats failed executions as incorrect, and summaries also include an `execution_success_only` subset. Accurate run statuses therefore matter for interpreting the score.
 
 ## Answer scoring
 
@@ -61,7 +69,7 @@ Outputs include per-case `judgments.jsonl` and `judgments.csv`, plus `summary.js
 
 You can evaluate in your own agent environment without installing our browser/video stack. Report the evaluated task count, correct count, accuracy, judge errors, model and judge identities, and search budget; note any deviations from the paper's protocol. Final aggregate statistics are sufficient to share results.
 
-To optionally reuse this judge, install the Python project and export a CSV with unique `id` values and columns `question`, `gold_answer`, `model_answer`, and `status` (`success` for completed executions). Optional `dataset` and `error` columns supply grouping and failure context. Never provide reference answers to the solving agent; they are inputs to the judge only.
+To optionally reuse this judge, install the Python project and export a CSV with unique `id` values and columns `question`, `gold_answer`, `model_answer`, and `status` (the overall task-run status). Optional `dataset` and `error` columns supply grouping and failure context. Never provide reference answers to the solving agent; they are inputs to the judge only.
 
 ## Resume scoring
 

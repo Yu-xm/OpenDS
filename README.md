@@ -63,8 +63,6 @@ The human study includes 50 participants, with five independent attempts per tas
 | DeepSeek-V4-Pro (text-only) | 12.5% | 25 |
 | Qwen3.8-Flash | 12.0% | 24 |
 
-Results are reported in Table 1 of *Deep Search in Real-World Web Environments*. Answers are judged for semantic equivalence to the reference using Qwen3.8-27B. The human study is described in Section 2.3.
-
 </details>
 
 <a id="dataset"></a>
@@ -93,11 +91,11 @@ Run the [dataset](#dataset) in your own agent environment, then export `predicti
 | Fields | Content |
 | --- | --- |
 | `id`, `question` | Original task ID and question |
-| `gold_answer` | Reference answer matched by ID, used only for scoring |
+| `gold_answer` | Reference answer matched by ID |
 | `model_answer` | Final agent answer |
-| `status` | `success` for completed execution; retain failure statuses otherwise |
+| `status` | Overall task execution status |
 
-Keep all 200 tasks, including failed and unanswered tasks; our browser and video tool environment is not required. Continue to the evaluation step below after exporting predictions.
+Export one row per task (200 rows total).
 
 **Use the default harness**
 
@@ -121,12 +119,9 @@ python ops/judge_predictions.py \
   --base-url https://your-endpoint/v1
 ```
 
-The output directory contains `summary.json` with correct counts, accuracy, and `judge_errors`, plus per-task judgments in `judgments.csv` and `judgments.jsonl`. Failed judge calls remain in the accuracy denominator. Report the model, judge, and search budget alongside your results.
+Results: `summary.json` contains accuracy, correct counts, and judge errors; `judgments.csv` and `judgments.jsonl` contain per-task scores.
 
 See the [evaluation guide](docs/evaluation.md) for judge installation, the full CSV format, metric definitions, and resuming interrupted scoring.
-
-> [!IMPORTANT]
-> Answer generation and scoring run separately. `success` indicates execution completion; the judge determines answer correctness.
 
 ## 📖 Citation & License
 
@@ -146,7 +141,7 @@ If you find this work useful, please cite:
 }
 ```
 
-Repository-authored code and included examples are released under Apache-2.0. Videos are distributed separately on Hugging Face; third-party videos are outside this code license grant.
+Repository-authored code and included examples are released under Apache-2.0.
 
 ## 💬 Discussion & Contact
 

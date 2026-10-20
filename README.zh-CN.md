@@ -65,8 +65,6 @@
 | DeepSeek-V4-Pro（纯文本） | 12.5% | 25 |
 | Qwen3.8-Flash | 12.0% | 24 |
 
-完整结果见论文 *Deep Search in Real-World Web Environments* 表 1。评估使用 Qwen3.8-27B 判断模型答案与参考答案是否语义等价。人工实验见论文第 2.3 节。
-
 </details>
 
 <a id="数据集"></a>
@@ -95,11 +93,11 @@ hf download Yu2020/OpenDS-World --repo-type dataset --local-dir data/opends-worl
 | 字段 | 内容 |
 | --- | --- |
 | `id`、`question` | 原始题目 ID 与问题 |
-| `gold_answer` | 按 ID 匹配的标准答案，仅供判分使用 |
+| `gold_answer` | 按 ID 匹配的标准答案 |
 | `model_answer` | 智能体最终答案 |
-| `status` | 执行完成填 `success`；失败时保留失败状态 |
+| `status` | 整题执行状态 |
 
-保留全部 200 道题，包括失败和未作答的题目；无需部署我们的浏览器与视频工具环境。导出后进入下方评估步骤。
+每题导出一行，共 200 行。
 
 **使用默认 Harness**
 
@@ -123,12 +121,9 @@ python ops/judge_predictions.py \
   --base-url https://your-endpoint/v1
 ```
 
-输出目录中的 `summary.json` 包含答对题数、准确率和 `judge_errors`，逐题判分保存为 `judgments.csv` 与 `judgments.jsonl`。Judge 调用失败的题目仍计入准确率分母。分享结果时请同时注明模型、Judge 和搜索预算。
+结果文件：`summary.json` 包含准确率、答对题数与 Judge 错误数；`judgments.csv` 和 `judgments.jsonl` 保存逐题判分。
 
 Judge 安装、完整 CSV 格式、统计口径与断点恢复见[评估指南（英文）](docs/evaluation.md)。
-
-> [!IMPORTANT]
-> 答题与判分分开运行。`success` 表示执行完成，答案是否正确由 Judge 判定。
 
 ## 📖 引用与许可
 
@@ -148,7 +143,7 @@ Judge 安装、完整 CSV 格式、统计口径与断点恢复见[评估指南�
 }
 ```
 
-本仓库原创代码与随附示例采用 Apache-2.0 许可。视频文件在 Hugging Face 单独分发；第三方视频不在此代码许可的授权范围内。
+本仓库原创代码与随附示例采用 Apache-2.0 许可。
 
 ## 💬 交流与联系
 
