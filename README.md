@@ -2,7 +2,7 @@
 
 # OpenDS-World
 
-### A traceable baseline for deep search in real-world web environments
+### Deep Search in Real-World Web Environments
 
 <p>
   <a href="#quick-start"><strong>Quick start</strong></a> &nbsp;·&nbsp;
