@@ -2,138 +2,154 @@
 
 # OpenDS-World
 
+[English](README.md) · [简体中文](README.zh-CN.md)
+
 ### Deep Search in Real-World Web Environments
 
+**From a video clue to a verifiable answer across the open Web.**
+
 <p>
-  <a href="#quick-start"><strong>Quick start</strong></a> &nbsp;·&nbsp;
-  <a href="#benchmark-data"><strong>Benchmark data</strong></a> &nbsp;·&nbsp;
-  <a href="#evaluation-protocol"><strong>Protocol</strong></a> &nbsp;·&nbsp;
-  <a href="#results-and-recovery"><strong>Results</strong></a>
+  <a href="https://huggingface.co/datasets/Yu2020/OpenDS-World"><img src="https://img.shields.io/badge/%F0%9F%A4%97%20Dataset-OpenDS--World-FFD21E?style=flat-square" alt="Hugging Face dataset"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache--2.0-2563EB?style=flat-square" alt="License: Apache-2.0"></a>
+  <a href="https://github.com/Yu-xm/OpenDS"><img src="https://img.shields.io/github/stars/Yu-xm/OpenDS?style=flat-square&logo=github&label=Stars" alt="GitHub stars"></a>
 </p>
 
 <p>
-  <a href="pyproject.toml"><img alt="Python 3.10–3.13" src="https://img.shields.io/badge/Python-3.10%E2%80%933.13-3776AB?logo=python&logoColor=white"></a>
-  <a href="LICENSE"><img alt="Apache-2.0 license" src="https://img.shields.io/badge/License-Apache--2.0-536DFE"></a>
-  <a href="https://github.com/Yu-xm/search/stargazers"><img alt="GitHub stars" src="https://img.shields.io/github/stars/Yu-xm/search?style=social"></a>
+  <a href="#benchmark-results">📊 Benchmark results</a> &nbsp;·&nbsp;
+  <a href="https://huggingface.co/datasets/Yu2020/OpenDS-World">🤗 Dataset</a> &nbsp;·&nbsp;
+  <a href="docs/evaluation.md">🛠 Evaluation guide</a>
 </p>
 
-<img src="assets/OpenDS.png" width="820" alt="OpenDS visual overview: deep search across real-world web environments">
+<img src="assets/OpenDS.png" width="880" alt="OpenDS: Deep Search in Real-World Web Environments">
 
 </div>
 
----
+**OpenDS-World** studies whether agents can carry out multi-step research in real-world Web environments. Given a question and an initial video, an agent must discover relevant sources, access their content, and connect evidence to determine a unique factual answer. The locations of the evidence and the path to the answer are not supplied in advance.
 
-## Quick start
+| **200** challenging tasks | **8** domains | **12** frontier models | **1,000** human attempts |
+| :---: | :---: | :---: | :---: |
+| Independently verified evidence and answers | From culture and history to science and technology | Evaluated under a shared protocol | Five independent solvers per task |
 
-The local diagnostic requires **Python 3.10–3.13**; Python 3.12 is recommended. A real web/video run also needs Docker, FFmpeg (`ffprobe`), `rg`, an OpenAI-compatible model endpoint, and a Serper API key.
+Open-Web Deep Search (**OpenDS**) brings together three challenges that arise throughout a research task:
 
-For video cases, the model endpoint must accept image inputs returned by the video tools.
+| Diverse modalities | Heterogeneous formats | Interactive access |
+| --- | --- | --- |
+| Connect clues across text, images, audio, and video. | Follow evidence through webpages, documents, media, and structured datasets. | Navigate interfaces, inspect visual scenes, adjust filters, and retrieve resources. |
+
+An example task moves from a museum video to a virtual tour, a fossil display, a podcast, a research paper, and an official dataset. Each source reveals the next clue needed to identify the final answer.
+
+<a href="assets/paper-task-example.png"><img src="assets/paper-task-example.png" width="100%" alt="Figure 2 from the paper: a multi-step evidence chain from a museum video to an official dataset identifier"></a>
+
+<p align="center"><sub>A research trajectory across video, interactive environments, documents, and data.</sub></p>
+
+<a id="benchmark-results"></a>
+
+## 📊 Benchmark Results
+
+> [!NOTE]
+> **Even the best-performing model solves fewer than 40% of the tasks.** GPT-6 Astra achieves **39.0%**, followed by Claude Opus 5.5 at **38.0%** and Gemini 3.8 Flash at **36.5%**. All 12 models are evaluated on the same 200 tasks with a shared tool environment and search budget.
+
+<img src="assets/paper-results.png" width="100%" alt="Paper results: model accuracy ranges from 12.0% to 39.0%; the independent human study reports 21.1% per attempt">
+
+<p align="center"><sub>Figure 1 from the paper. Model accuracy is measured over 200 tasks; human accuracy is measured over 1,000 independent attempts.</sub></p>
+
+The human study includes 50 participants, with five independent attempts per task. Participants achieve **21.1% accuracy per attempt**; **42.5% of tasks remain unsolved by all five assigned solvers**. Humans use conventional browsers without LLM assistance and have no fixed per-question time limit. Model search is limited to one hour and 100 tool calls per task.
+
+<details>
+<summary><strong>Full model results · Table 1</strong></summary>
+
+| Model | Accuracy | Correct / 200 |
+| --- | ---: | ---: |
+| **GPT-6 Astra** | **39.0%** | **78** |
+| Claude Opus 5.5 | 38.0% | 76 |
+| Gemini 3.8 Flash | 36.5% | 73 |
+| Claude Fable 5.1 | 33.5% | 67 |
+| GPT-5.6 Sol | 28.0% | 56 |
+| Qwen3.8-Max | 25.5% | 51 |
+| GLM-5.3-Flash | 23.5% | 47 |
+| DeepSeek-V4.1-Flash | 20.5% | 41 |
+| Kimi K3 | 17.5% | 35 |
+| GLM-5.3 (text-only) | 13.5% | 27 |
+| DeepSeek-V4-Pro (text-only) | 12.5% | 25 |
+| Qwen3.8-Flash | 12.0% | 24 |
+
+Results are transcribed from Table 1 of *Deep Search in Real-World Web Environments* (20 October 2026). Answers are judged for semantic equivalence to the reference using Qwen3.8-27B. The human study is described in Section 2.3.
+
+</details>
+
+The paper also analyzes search cost, tool use, failure recovery, and budget exhaustion. More tool calls and longer runtimes do not consistently yield higher accuracy: coordinating tools and managing long research trajectories remain central challenges.
+
+<a id="dataset"></a>
+
+## 🤗 Dataset
+
+**[🤗 Yu2020/OpenDS-World](https://huggingface.co/datasets/Yu2020/OpenDS-World)** hosts the benchmark release. Download the available files with:
 
 ```bash
-git clone https://github.com/Yu-xm/search.git
-cd search
+pip install huggingface_hub
+hf download Yu2020/OpenDS-World --repo-type dataset --local-dir data/opends-world
+```
+
+Evaluation requires the matching **200-case question/answer CSV and videos**. See [data preparation](docs/evaluation.md#benchmark-data) for the expected format and paths.
+
+<a id="quick-start"></a>
+
+## 🚀 Quick start
+
+### Use your own harness
+
+Download the [dataset](#dataset), run the 200 tasks in your own agent environment, and share your final statistics: evaluated task count, correct answers, accuracy, and judge errors, together with the model, judge, and search budget used. No installation of our tool environment is required. Keep the scoring protocol consistent for comparison; the [scoring guide](docs/evaluation.md#answer-scoring) describes our LLM-as-a-Judge workflow.
+
+### Use the default agent
+
+Install the reference harness (Python 3.10–3.13):
+
+```bash
+git clone https://github.com/Yu-xm/OpenDS.git
+cd OpenDS
 python3 -m venv .venv
 source .venv/bin/activate
-python -m pip install -e .
-
-# One end-to-end local diagnostic; no API key, Docker, or paid model call.
-opends-world --config configs/mock-text.json --limit 1
+pip install -e .
 ```
 
-The diagnostic prints `success=1` and writes `results/OpenDS-World-Text/mock-model/mock-smoke/`. It checks installation, configuration loading, trace writing, and result export. It does not measure answer quality or external-tool health. To run it again, set a new `run_id` in `configs/mock-text.json`.
-
-### Run a real case
-
-1. Build the browser and video images.
-2. Download the 200 videos from [Yu2020/OpenDS-World](https://huggingface.co/datasets/Yu2020/OpenDS-World) and prepare the matching 200-case question CSV. The dataset currently provides videos, but no question/answer CSV.
-3. Export the dataset paths, model endpoint, and search credentials, then run the configuration.
+Follow the [environment and data setup](docs/evaluation.md#run-a-real-case), then **generate answers and score them separately**:
 
 ```bash
-docker build -f toolbox/docker/browser/Dockerfile -t toolbox-browser:pdf-v1 toolbox
-docker build -f toolbox/docker/youtube/Dockerfile -t toolbox-youtube:latest toolbox
+opends-world --config evaluation.yaml
 
-python -m pip install 'huggingface_hub[cli]'
-hf download Yu2020/OpenDS-World --repo-type dataset \
-  --include 'videos/*.mp4' --local-dir data/opends-world
-
-export BENCHMARK_DATASET_CSV='/absolute/path/to/final-200.csv'
-export BENCHMARK_VIDEO_DIR="$PWD/data/opends-world/videos"
-export MODEL_ID='your-model-id'
-export MODEL_BASE_URL='https://your-openai-compatible-service/v1'
-export MODEL_API_KEY='your-key'  # use '' when the endpoint needs no authentication
-export SERPER_API_KEY='your-serper-key'
-
-# Give this experiment a unique run_id in evaluation.yaml first.
-opends-world --config evaluation.yaml --index 1
+python ops/judge_predictions.py \
+  --predictions /path/to/predictions.csv \
+  --output-dir /path/to/judgments \
+  --model-id your-judge-model \
+  --base-url https://your-endpoint/v1
 ```
 
-For all cases, run `opends-world --config evaluation.yaml` after supplying every matching video. The configuration rejects a CSV unless it has exactly 200 data rows, including when `--index` selects one case. `--index N` selects the Nth CSV data row, starting at 1; it is not the sample ID. `--resume` uses the same configuration and run ID after an interruption. See [`evaluation_all.yaml`](evaluation_all.yaml) for the complete option reference.
+> [!IMPORTANT]
+> The judge reads its key from `MODEL_API_KEY` and writes accuracy to `summary.json`. The agent's `success` status indicates execution completion; answer correctness is determined by the separate judge step. See the [scoring guide](docs/evaluation.md#answer-scoring) for output details and error accounting.
 
-## Benchmark data
+## 📖 Citation & License
 
-The final benchmark has **200 cases**. Download `videos/001.mp4` through `videos/200.mp4` from [Yu2020/OpenDS-World](https://huggingface.co/datasets/Yu2020/OpenDS-World). That dataset currently does not provide the question/answer CSV or an aligned subtitle Parquet file. A real evaluation needs the matching 200-row CSV; the video download alone is not enough. The previous 500-row CSV and subtitle Parquet were obsolete and have been removed; do not use the historical archive or an old video set as the final evaluation data.
+If you find this work useful, please cite:
 
-Point `BENCHMARK_DATASET_CSV` to the downloaded CSV and `BENCHMARK_VIDEO_DIR` to its matching local videos. The configuration expects `id`, `question`, and `answer` columns and exactly 200 rows. It maps numeric ID `58` to `058.mp4`; adjust `input_video_id_width` or use an explicit video filename column if the published data uses another naming scheme. Set `input_video_subtitles` to a Parquet file with aligned `id` and `subtitle` columns only if a final 200-case version is available. [`examples/opends_world_text.csv`](examples/opends_world_text.csv) is a synthetic one-row mock input, not benchmark data.
-
-> **External evidence changes.** Search rankings, pages, and video availability can change between runs. Preserve the generated trajectories and artifacts alongside reported scores. Video use remains subject to the source platform's terms.
-
-## Evaluation protocol
-
-| Parameter | Default | Why it matters |
-| --- | ---: | --- |
-| Research deadline | 3,600 s | Per case, including model and tool work |
-| Shared tool budget | 100 calls | Failed executions also consume a call |
-| Images per model request | 250 | Shared by search, browser, files, and video frames |
-| Finalization budget | 5,000 output tokens | Tool-free answer generation after research stops |
-| Second-answer reserve | 1,000 tokens | Available if the first finalization needs a retry |
-| Model sampling | Provider-specific | Set `model.parameters` explicitly for reported experiments |
-
-If research stops because of a deadline, exhausted budget, model error, or empty answer, finalization consumes **only completed observations** from the durable trace. Interrupted model output and unfinished tool responses are discarded. The run records `status` and `finalization_status` separately; failed cases do not silently become successes.
-
-For a reproducible report, retain the code commit, model and inference settings, dataset hashes, execution time, tool responses, and scoring procedure. Optional ASR and MinerU readers are disabled in [`evaluation.yaml`](evaluation.yaml); enable them only when their services or images are ready.
-
-## Results and recovery
-
-```text
-results/<benchmark>/<model>/<run_id>/
-├── predictions.csv    # answer, status, latency, tool counts, error
-├── run_config.json    # redacted configuration and provenance metadata
-├── trajectories/      # per-case JSONL events
-└── artifacts/         # pages, screenshots, files, and saved model context
+```bibtex
+@misc{yu2026opendsworld,
+  title  = {Deep Search in Real-World Web Environments},
+  author = {Xiaomin Yu and Hongliang Chen and Zhe Huang and Shilin Yan and
+            Shao-Rong Su and Xuqiao Ma and Feiyang Wang and Jiayu Chen and
+            Jiwei Fang and Yu Yan and Yini Huang and Chen Chen and
+            Ruoxi Cheng and Yuzhi He and Yuhui Zhang and Xiaoxing Hu and
+            Chen Liu and Jianbo Lin and Yijiang Li and Xiaobin Hu and
+            Menglong Li and Zhuoran Lu and Weishi Wang and Zhongqi Yue and
+            Chengwei Qin},
+  year   = {2026}
+}
 ```
 
-The CLI exits with code `2` when any case has a non-success status. Investigate `infrastructure_error` before scoring; it reflects an environment failure, not an incorrect model answer. For answer-only recovery from an existing trace, run `python ops/finalize_trace.py --help`. Recovery writes to a **new** directory and does not repeat research tools.
+Repository-authored code and included examples are released under [Apache-2.0](LICENSE). Videos are distributed separately on Hugging Face; third-party videos are outside this code license grant.
 
-### When a run fails
+---
 
-For `ops/judge_predictions.py --resume`, the output directory must contain a
-hashed `judge_manifest.json`. The SHA-256 identity binds the predictions file,
-judge model and endpoint, prompt, inference settings, sample limit, and judge
-script version. Mismatches and legacy manifests are rejected before existing
-outputs are changed; use a new output directory to re-score changed inputs.
-The manifest is saved before the first request so interrupted runs can resume.
-API keys are excluded from the identity, allowing credential rotation.
-
-| Symptom | First check |
-| --- | --- |
-| Missing `${...}` variable | Export the variable named in the YAML field-path error. |
-| Missing video or `ffprobe` error | Download the matching MP4; install FFmpeg. |
-| Docker image or daemon error | Start Docker and build both images above. |
-| HTTP 401/403 or 429 | Check credentials, service permissions, or rate limits. |
-| Existing run ID | Use a new ID for a new experiment; use `--resume` only for the original run. |
-| Sample IDs map to the same output name | Rename colliding IDs (for example `a/b` and `a_b`) before running; the runner rejects them before writing case artifacts. |
-| `infrastructure_error` | Read the row's `error` and the matching JSONL trace before scoring. |
-
-Token totals include provider-reported usage from incomplete research responses,
-even though their unfinished answer text is discarded. The corresponding
-`incomplete_model_response` event retains usage for auditing.
-
-Run the regression tests after installing the project:
-
-```bash
-python -m unittest discover -s tests -v
-```
-
-## License and citation
-
-Repository-authored code and included examples are released under [Apache-2.0](LICENSE). The video files are distributed separately on Hugging Face; downloaded third-party videos are outside this grant. The project [visual overview](assets/OpenDS.pdf) is available as a one-page PDF; a paper citation can be added when publication details are available.
+<p align="center">
+  <a href="LICENSE">Apache-2.0 · code and examples</a> &nbsp;·&nbsp;
+  <a href="mailto:yuxm02@gmail.com">Research contact</a>
+</p>
