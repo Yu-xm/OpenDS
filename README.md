@@ -6,8 +6,6 @@
 
 ### Deep Search in Real-World Web Environments
 
-**From a video clue to a verifiable answer across the open Web.**
-
 <p>
   <a href="https://huggingface.co/datasets/Yu2020/OpenDS-World"><img src="https://img.shields.io/badge/%F0%9F%A4%97%20Dataset-OpenDS--World-FFD21E?style=flat-square" alt="Hugging Face dataset"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache--2.0-2563EB?style=flat-square" alt="License: Apache-2.0"></a>
@@ -24,13 +22,11 @@
 
 </div>
 
-**OpenDS-World** studies whether agents can carry out multi-step research in real-world Web environments. Given a question and an initial video, an agent must discover relevant sources, access their content, and connect evidence to determine a unique factual answer. The locations of the evidence and the path to the answer are not supplied in advance.
+**OpenDS-World** is a benchmark for deep search on the open Web, with 200 tasks across eight domains. Agents retrieve, access, and integrate multimodal evidence in real-world Web environments to answer factual questions.
 
-| **200** challenging tasks | **8** domains | **12** frontier models | **1,000** human attempts |
+| **200** tasks | **8** domains | **12** models | **1,000** human attempts |
 | :---: | :---: | :---: | :---: |
 | Independently verified evidence and answers | From culture and history to science and technology | Evaluated under a shared protocol | Five independent solvers per task |
-
-Open-Web Deep Search (**OpenDS**) brings together three challenges that arise throughout a research task:
 
 | Diverse modalities | Heterogeneous formats | Interactive access |
 | --- | --- | --- |
@@ -41,7 +37,7 @@ Open-Web Deep Search (**OpenDS**) brings together three challenges that arise th
 ## 📊 Benchmark Results
 
 > [!NOTE]
-> **Even the best-performing model solves fewer than 40% of the tasks.** GPT-6 Astra achieves **39.0%**, followed by Claude Opus 5.5 at **38.0%** and Gemini 3.8 Flash at **36.5%**. All 12 models are evaluated on the same 200 tasks with a shared tool environment and search budget.
+> Across 12 models evaluated on the same 200 tasks with a shared tool environment and search budget, the highest accuracy is **39.0%** (GPT-6 Astra).
 
 <img src="assets/paper-results.png" width="100%" alt="Paper results: model accuracy ranges from 12.0% to 39.0%; the independent human study reports 21.1% per attempt">
 
@@ -70,8 +66,6 @@ The human study includes 50 participants, with five independent attempts per tas
 Results are reported in Table 1 of *Deep Search in Real-World Web Environments*. Answers are judged for semantic equivalence to the reference using Qwen3.8-27B. The human study is described in Section 2.3.
 
 </details>
-
-The paper also analyzes search cost, tool use, failure recovery, and budget exhaustion. More tool calls and longer runtimes do not consistently yield higher accuracy: coordinating tools and managing long research trajectories remain central challenges.
 
 <a id="dataset"></a>
 
@@ -152,11 +146,12 @@ If you find this work useful, please cite:
 }
 ```
 
-Repository-authored code and included examples are released under [Apache-2.0](LICENSE). Videos are distributed separately on Hugging Face; third-party videos are outside this code license grant.
+Repository-authored code and included examples are released under Apache-2.0. Videos are distributed separately on Hugging Face; third-party videos are outside this code license grant.
 
----
+## 💬 Discussion & Contact
+
+Email: `yuxm02@gmail.com`
 
 <p align="center">
-  <a href="LICENSE">Apache-2.0 · code and examples</a> &nbsp;·&nbsp;
-  <a href="mailto:yuxm02@gmail.com">Research contact</a>
+  <img src="assets/discussion-group.png" width="320" alt="OpenDS WeChat discussion group QR code, valid until October 27">
 </p>

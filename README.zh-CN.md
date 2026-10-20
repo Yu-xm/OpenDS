@@ -8,8 +8,6 @@
 
 ### 真实 Web 环境中的深度搜索
 
-**从一段视频线索出发，在开放 Web 中寻找可核实的答案。**
-
 <p>
   <a href="https://huggingface.co/datasets/Yu2020/OpenDS-World"><img src="https://img.shields.io/badge/%F0%9F%A4%97%20Dataset-OpenDS--World-FFD21E?style=flat-square" alt="Hugging Face dataset"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache--2.0-2563EB?style=flat-square" alt="License: Apache-2.0"></a>
@@ -26,13 +24,11 @@
 
 </div>
 
-**OpenDS-World** 研究智能体能否在真实 Web 环境中完成多步骤研究任务。给定一个问题和一段初始视频，智能体需要自行发现相关来源、访问其内容，并串联证据，确定唯一的事实性答案。任务不会预先提供证据的位置或通往答案的路径。
+**OpenDS-World** 是一个开放 Web 深度搜索基准，包含 200 道任务，覆盖 8 个领域。智能体需要在真实 Web 环境中检索、访问并整合多模态证据，回答事实性问题。
 
-| **200** 道挑战性任务 | **8** 个领域 | **12** 个前沿模型 | **1,000** 次人工作答 |
+| **200** 道任务 | **8** 个领域 | **12** 个模型 | **1,000** 次人工作答 |
 | :---: | :---: | :---: | :---: |
 | 证据与答案经过独立核验 | 覆盖文化、历史、科学、技术等领域 | 采用统一评估协议 | 每题由五位参与者独立作答 |
-
-开放 Web 深度搜索（Open-Web Deep Search，**OpenDS**）将三类挑战贯穿于同一个研究任务：
 
 | 多模态线索 | 多种内容格式 | 交互式访问 |
 | --- | --- | --- |
@@ -43,7 +39,7 @@
 ## 📊 基准测试结果
 
 > [!NOTE]
-> **表现最好的模型也只能解决不到 40% 的任务。** GPT-6 Astra 的准确率为 **39.0%**，其次是 Claude Opus 5.5（**38.0%**）和 Gemini 3.8 Flash（**36.5%**）。12 个模型均在相同的 200 道任务上，使用统一的工具环境和搜索预算进行评估。
+> 12 个模型在相同的 200 道任务上，使用统一的工具环境和搜索预算进行评估。最高准确率为 **39.0%**（GPT-6 Astra）。
 
 <img src="assets/paper-results.png" width="100%" alt="论文结果：模型准确率为 12.0%–39.0%；独立人工实验的单次作答准确率为 21.1%">
 
@@ -72,8 +68,6 @@
 完整结果见论文 *Deep Search in Real-World Web Environments* 表 1。评估使用 Qwen3.8-27B 判断模型答案与参考答案是否语义等价。人工实验见论文第 2.3 节。
 
 </details>
-
-论文还分析了搜索成本、工具使用、失败恢复和预算耗尽等问题。更多的工具调用和更长的运行时间并不总能带来更高的准确率：工具协同与长程研究过程的管理仍是关键挑战。
 
 <a id="数据集"></a>
 
@@ -154,11 +148,12 @@ Judge 安装、完整 CSV 格式、统计口径与断点恢复见[评估指南�
 }
 ```
 
-本仓库原创代码与随附示例采用 [Apache-2.0](LICENSE) 许可。视频文件在 Hugging Face 单独分发；第三方视频不在此代码许可的授权范围内。
+本仓库原创代码与随附示例采用 Apache-2.0 许可。视频文件在 Hugging Face 单独分发；第三方视频不在此代码许可的授权范围内。
 
----
+## 💬 交流与联系
+
+邮箱：`yuxm02@gmail.com`
 
 <p align="center">
-  <a href="LICENSE">Apache-2.0 · 代码与示例</a> &nbsp;·&nbsp;
-  <a href="mailto:yuxm02@gmail.com">学术联系</a>
+  <img src="assets/discussion-group.png" width="320" alt="OpenDS 微信讨论群二维码，有效期至 10 月 27 日">
 </p>
