@@ -45,7 +45,7 @@
 
 <p align="center"><sub>结果取自论文图 1。模型准确率按 200 道任务统计，人工准确率按 1,000 次独立作答统计。</sub></p>
 
-人工实验共有 50 位参与者，每道任务由五人独立作答。**单次作答准确率为 21.1%**；**42.5% 的任务没有被分配到的任何一位参与者解出**。参与者使用常规浏览器，不使用大语言模型辅助，每题不设固定时间限制。模型每题的搜索预算为一小时、100 次工具调用。
+人工实验共有 50 位参与者，每道任务由五人独立作答。**单次作答准确率为 21.1%**；**42.5% 的任务在五位参与者的作答中均未被解出**。参与者使用常规浏览器，不使用大语言模型辅助，每题不设固定时间限制。模型每题的搜索预算为一小时、100 次工具调用。
 
 <details>
 <summary><strong>完整模型结果 · 论文表 1</strong></summary>
@@ -71,24 +71,36 @@
 
 ## 🤗 数据集
 
-基准数据发布于 **[🤗 Yu2020/OpenDS-World](https://huggingface.co/datasets/Yu2020/OpenDS-World)**。使用以下命令下载数据集：
+从 **[🤗 Yu2020/OpenDS-World](https://huggingface.co/datasets/Yu2020/OpenDS-World)** 下载数据集：
 
 ```bash
 pip install huggingface_hub
 hf download Yu2020/OpenDS-World --repo-type dataset --local-dir data/opends-world
 ```
 
-评估需要相互匹配的 **200 道题目及答案 CSV 和视频文件**。文件格式与路径配置见 [数据准备（英文）](docs/harness.md#benchmark-data)。
+评估使用包含 **200 道题目及答案的 CSV 文件与对应视频**。文件格式与路径配置见 [数据准备（英文）](docs/harness.md#benchmark-data)。
 
 <a id="快速开始"></a>
 
 ## 🚀 快速开始
 
-### 1. 运行智能体
+### 1. 安装
+
+需要 Python 3.10–3.13。
+
+```bash
+git clone https://github.com/Yu-xm/OpenDS.git
+cd OpenDS
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -e .
+```
+
+### 2. 运行智能体
 
 **使用自己的 Harness**
 
-在自己的智能体环境中运行[数据集](#数据集)，然后导出 `predictions.csv`，接入统一判分：
+使用自己的智能体完成[基准任务](#数据集)，将答案导出为 `predictions.csv`：
 
 | 字段 | 内容 |
 | --- | --- |
@@ -101,17 +113,17 @@ hf download Yu2020/OpenDS-World --repo-type dataset --local-dir data/opends-worl
 
 **使用默认 Harness**
 
-按照 [Harness 指南（英文）](docs/harness.md)完成安装、模型与工具配置、数据准备，然后运行：
+按照 [Harness 指南（英文）](docs/harness.md)配置模型、工具和数据集，然后运行：
 
 ```bash
 opends-world --config evaluation.yaml
 ```
 
-输出位于 `results/<benchmark>/<model>/<run_id>/`，其中 `predictions.csv` 用于下一步评估，`trajectories/` 保存逐题轨迹。
+输出位于 `results/<benchmark>/<model>/<run_id>/`，其中 `predictions.csv` 保存答案，`trajectories/` 保存逐题轨迹。
 
-### 2. 评估答案
+### 3. 评估答案
 
-两种 Harness 均使用上一步的 `predictions.csv`。安装本仓库的 Python 包后，在仓库根目录运行独立的 LLM-as-a-Judge，并通过环境变量 `MODEL_API_KEY` 配置 Judge 密钥：
+对任一 Harness 生成的 `predictions.csv` 进行评估。通过环境变量 `MODEL_API_KEY` 设置 Judge API 密钥，然后在仓库根目录运行：
 
 ```bash
 python ops/judge_predictions.py \
@@ -123,7 +135,7 @@ python ops/judge_predictions.py \
 
 结果文件：`summary.json` 包含准确率、答对题数与 Judge 错误数；`judgments.csv` 和 `judgments.jsonl` 保存逐题判分。
 
-Judge 安装、完整 CSV 格式、统计口径与断点恢复见[评估指南（英文）](docs/evaluation.md)。
+输入格式、判分细节与断点恢复见[评估指南（英文）](docs/evaluation.md)。
 
 ## 📖 引用与许可
 
@@ -143,7 +155,7 @@ Judge 安装、完整 CSV 格式、统计口径与断点恢复见[评估指南�
 }
 ```
 
-本仓库原创代码与随附示例采用 Apache-2.0 许可。
+代码与随附示例采用 Apache-2.0 许可。
 
 ## 💬 交流与联系
 

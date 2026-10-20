@@ -43,7 +43,7 @@
 
 <p align="center"><sub>Figure 1 from the paper. Model accuracy is measured over 200 tasks; human accuracy is measured over 1,000 independent attempts.</sub></p>
 
-The human study includes 50 participants, with five independent attempts per task. Participants achieve **21.1% accuracy per attempt**; **42.5% of tasks remain unsolved by all five assigned solvers**. Humans use conventional browsers without LLM assistance and have no fixed per-question time limit. Model search is limited to one hour and 100 tool calls per task.
+The human study includes 50 participants, with five independent attempts per task. Participants achieve **21.1% accuracy per attempt**; **42.5% of tasks were solved by none of their five assigned participants**. Humans use conventional browsers without LLM assistance and have no fixed per-question time limit. Model search is limited to one hour and 100 tool calls per task.
 
 <details>
 <summary><strong>Full model results · Table 1</strong></summary>
@@ -69,24 +69,36 @@ The human study includes 50 participants, with five independent attempts per tas
 
 ## 🤗 Dataset
 
-**[🤗 Yu2020/OpenDS-World](https://huggingface.co/datasets/Yu2020/OpenDS-World)** hosts the benchmark release. Download the dataset with:
+Download the dataset from **[🤗 Yu2020/OpenDS-World](https://huggingface.co/datasets/Yu2020/OpenDS-World)**:
 
 ```bash
 pip install huggingface_hub
 hf download Yu2020/OpenDS-World --repo-type dataset --local-dir data/opends-world
 ```
 
-Evaluation requires the matching **200-case question/answer CSV and videos**. See [data preparation](docs/harness.md#benchmark-data) for the expected format and paths.
+Evaluation uses a **200-row question-and-answer CSV and the corresponding videos**. See [data preparation](docs/harness.md#benchmark-data) for the expected format and paths.
 
 <a id="quick-start"></a>
 
 ## 🚀 Quick start
 
-### 1. Run your agent
+### 1. Installation
+
+Requires Python 3.10–3.13.
+
+```bash
+git clone https://github.com/Yu-xm/OpenDS.git
+cd OpenDS
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -e .
+```
+
+### 2. Run your agent
 
 **Use your own harness**
 
-Run the [dataset](#dataset) in your own agent environment, then export `predictions.csv` for shared scoring:
+Run your agent on the [benchmark tasks](#dataset) and export its answers to `predictions.csv`:
 
 | Fields | Content |
 | --- | --- |
@@ -99,17 +111,17 @@ Export one row per task (200 rows total).
 
 **Use the default harness**
 
-Complete installation, model/tool configuration, and data preparation in the [harness guide](docs/harness.md), then run:
+Configure the model, tools, and dataset using the [harness guide](docs/harness.md), then run:
 
 ```bash
 opends-world --config evaluation.yaml
 ```
 
-Outputs are saved to `results/<benchmark>/<model>/<run_id>/`: `predictions.csv` feeds the next evaluation step, while `trajectories/` contains per-task traces.
+Outputs are saved to `results/<benchmark>/<model>/<run_id>/`: `predictions.csv` contains answers and `trajectories/` contains per-task traces.
 
-### 2. Evaluate answers
+### 3. Evaluate answers
 
-Both harness paths use the `predictions.csv` produced above. After installing this repository's Python package, run the standalone LLM-as-a-Judge from the repository root, with the judge credential set through the `MODEL_API_KEY` environment variable:
+Evaluate `predictions.csv` from either harness. Set the judge API key in `MODEL_API_KEY`, then run from the repository root:
 
 ```bash
 python ops/judge_predictions.py \
@@ -119,9 +131,9 @@ python ops/judge_predictions.py \
   --base-url https://your-endpoint/v1
 ```
 
-Results: `summary.json` contains accuracy, correct counts, and judge errors; `judgments.csv` and `judgments.jsonl` contain per-task scores.
+`summary.json` contains accuracy, the number of correct answers, and judge errors. Per-task judgments are saved in `judgments.csv` and `judgments.jsonl`.
 
-See the [evaluation guide](docs/evaluation.md) for judge installation, the full CSV format, metric definitions, and resuming interrupted scoring.
+See the [evaluation guide](docs/evaluation.md) for input format, scoring details, and resuming evaluation.
 
 ## 📖 Citation & License
 
@@ -141,7 +153,7 @@ If you find this work useful, please cite:
 }
 ```
 
-Repository-authored code and included examples are released under Apache-2.0.
+The code and included examples are licensed under Apache-2.0.
 
 ## 💬 Discussion & Contact
 
