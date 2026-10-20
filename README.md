@@ -23,18 +23,6 @@
 
 ---
 
-## At a glance
-
-| **200** benchmark cases | **100** tool calls per case | **1 hour** research deadline |
-| :---: | :---: | :---: |
-| The final evaluation contains 200 cases. | Search, browser, video, and file tools share one budget. | Completed evidence is saved before tool-free finalization. |
-
-OpenDS-World runs a research agent on text questions that may require an input video. It records the answer, per-case status, tool observations, and the exact context used to produce a final answer. The code is a **research baseline and evaluation release**; `success` means execution completed, not that the answer is correct.
-
-<img src="assets/overview.svg" alt="OpenDS-World workflow: benchmark case, research agent, evidence, final answer">
-
-> **Two input modes.** `OpenDS-World-Text` lets the agent inspect task videos through tools. `OpenDS-World` supports CSVs with direct video/audio fields for multimodal model adapters. Hugging Face hosts the 200 matching videos; the old 500-case export was removed from this repository.
-
 ## Quick start
 
 The local diagnostic requires **Python 3.10–3.13**; Python 3.12 is recommended. A real web/video run also needs Docker, FFmpeg (`ffprobe`), `rg`, an OpenAI-compatible model endpoint, and a Serper API key.
