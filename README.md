@@ -36,12 +36,6 @@ Open-Web Deep Search (**OpenDS**) brings together three challenges that arise th
 | --- | --- | --- |
 | Connect clues across text, images, audio, and video. | Follow evidence through webpages, documents, media, and structured datasets. | Navigate interfaces, inspect visual scenes, adjust filters, and retrieve resources. |
 
-An example task moves from a museum video to a virtual tour, a fossil display, a podcast, a research paper, and an official dataset. Each source reveals the next clue needed to identify the final answer.
-
-<a href="assets/paper-task-example.png"><img src="assets/paper-task-example.png" width="100%" alt="Figure 2 from the paper: a multi-step evidence chain from a museum video to an official dataset identifier"></a>
-
-<p align="center"><sub>A research trajectory across video, interactive environments, documents, and data.</sub></p>
-
 <a id="benchmark-results"></a>
 
 ## 📊 Benchmark Results
@@ -73,7 +67,7 @@ The human study includes 50 participants, with five independent attempts per tas
 | DeepSeek-V4-Pro (text-only) | 12.5% | 25 |
 | Qwen3.8-Flash | 12.0% | 24 |
 
-Results are transcribed from Table 1 of *Deep Search in Real-World Web Environments* (20 October 2026). Answers are judged for semantic equivalence to the reference using Qwen3.8-27B. The human study is described in Section 2.3.
+Results are reported in Table 1 of *Deep Search in Real-World Web Environments*. Answers are judged for semantic equivalence to the reference using Qwen3.8-27B. The human study is described in Section 2.3.
 
 </details>
 
@@ -83,40 +77,49 @@ The paper also analyzes search cost, tool use, failure recovery, and budget exha
 
 ## 🤗 Dataset
 
-**[🤗 Yu2020/OpenDS-World](https://huggingface.co/datasets/Yu2020/OpenDS-World)** hosts the benchmark release. Download the available files with:
+**[🤗 Yu2020/OpenDS-World](https://huggingface.co/datasets/Yu2020/OpenDS-World)** hosts the benchmark release. Download the dataset with:
 
 ```bash
 pip install huggingface_hub
 hf download Yu2020/OpenDS-World --repo-type dataset --local-dir data/opends-world
 ```
 
-Evaluation requires the matching **200-case question/answer CSV and videos**. See [data preparation](docs/evaluation.md#benchmark-data) for the expected format and paths.
+Evaluation requires the matching **200-case question/answer CSV and videos**. See [data preparation](docs/harness.md#benchmark-data) for the expected format and paths.
 
 <a id="quick-start"></a>
 
 ## 🚀 Quick start
 
-### Use your own harness
+### 1. Run your agent
 
-Download the [dataset](#dataset), run the 200 tasks in your own agent environment, and share your final statistics: evaluated task count, correct answers, accuracy, and judge errors, together with the model, judge, and search budget used. No installation of our tool environment is required. Keep the scoring protocol consistent for comparison; the [scoring guide](docs/evaluation.md#answer-scoring) describes our LLM-as-a-Judge workflow.
+**Use your own harness**
 
-### Use the default agent
+Run the [dataset](#dataset) in your own agent environment, then export `predictions.csv` for shared scoring:
 
-Install the reference harness (Python 3.10–3.13):
+| Fields | Content |
+| --- | --- |
+| `id`, `question` | Original task ID and question |
+| `gold_answer` | Reference answer matched by ID, used only for scoring |
+| `model_answer` | Final agent answer |
+| `status` | `success` for completed execution; retain failure statuses otherwise |
 
-```bash
-git clone https://github.com/Yu-xm/OpenDS.git
-cd OpenDS
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -e .
-```
+Keep all 200 tasks, including failed and unanswered tasks; our browser and video tool environment is not required. Continue to the evaluation step below after exporting predictions.
 
-Follow the [environment and data setup](docs/evaluation.md#run-a-real-case), then **generate answers and score them separately**:
+**Use the default harness**
+
+Complete installation, model/tool configuration, and data preparation in the [harness guide](docs/harness.md), then run:
 
 ```bash
 opends-world --config evaluation.yaml
+```
 
+Outputs are saved to `results/<benchmark>/<model>/<run_id>/`: `predictions.csv` feeds the next evaluation step, while `trajectories/` contains per-task traces.
+
+### 2. Evaluate answers
+
+Both harness paths use the `predictions.csv` produced above. After installing this repository's Python package, run the standalone LLM-as-a-Judge from the repository root, with the judge credential set through the `MODEL_API_KEY` environment variable:
+
+```bash
 python ops/judge_predictions.py \
   --predictions /path/to/predictions.csv \
   --output-dir /path/to/judgments \
@@ -124,8 +127,12 @@ python ops/judge_predictions.py \
   --base-url https://your-endpoint/v1
 ```
 
+The output directory contains `summary.json` with correct counts, accuracy, and `judge_errors`, plus per-task judgments in `judgments.csv` and `judgments.jsonl`. Failed judge calls remain in the accuracy denominator. Report the model, judge, and search budget alongside your results.
+
+See the [evaluation guide](docs/evaluation.md) for judge installation, the full CSV format, metric definitions, and resuming interrupted scoring.
+
 > [!IMPORTANT]
-> The judge reads its key from `MODEL_API_KEY` and writes accuracy to `summary.json`. The agent's `success` status indicates execution completion; answer correctness is determined by the separate judge step. See the [scoring guide](docs/evaluation.md#answer-scoring) for output details and error accounting.
+> Answer generation and scoring run separately. `success` indicates execution completion; the judge determines answer correctness.
 
 ## 📖 Citation & License
 
