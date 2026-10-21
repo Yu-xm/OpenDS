@@ -111,21 +111,7 @@ See the [evaluation guide](docs/evaluation.md) for input format, scoring details
 
 ## 📖 Citation & License
 
-If you find this work useful, please cite:
-
-```bibtex
-@misc{yu2026opendsworld,
-  title  = {Deep Search in Real-World Web Environments},
-  author = {Xiaomin Yu and Hongliang Chen and Zhe Huang and Shilin Yan and
-            Shao-Rong Su and Xuqiao Ma and Feiyang Wang and Jiayu Chen and
-            Jiwei Fang and Yu Yan and Yini Huang and Chen Chen and
-            Ruoxi Cheng and Yuzhi He and Yuhui Zhang and Xiaoxing Hu and
-            Chen Liu and Jianbo Lin and Yijiang Li and Xiaobin Hu and
-            Menglong Li and Zhuoran Lu and Weishi Wang and Zhongqi Yue and
-            Chengwei Qin},
-  year   = {2026}
-}
-```
+If you find this work useful, please cite
 
 The code and included examples are licensed under Apache-2.0.
 
