@@ -37,26 +37,6 @@
 
 The human study includes 50 participants, with five independent attempts per task. Participants achieve **21.1% accuracy per attempt**; **42.5% of tasks were solved by none of their five assigned participants**. Humans use conventional browsers without LLM assistance and have no fixed per-question time limit. Model search is limited to one hour and 100 tool calls per task.
 
-<details>
-<summary><strong>Full model results · Table 1</strong></summary>
-
-| Model | Accuracy | Correct / 200 |
-| --- | ---: | ---: |
-| **GPT-6 Astra** | **39.0%** | **78** |
-| Claude Opus 5.5 | 38.0% | 76 |
-| Gemini 3.8 Flash | 36.5% | 73 |
-| Claude Fable 5.1 | 33.5% | 67 |
-| GPT-5.6 Sol | 28.0% | 56 |
-| Qwen3.8-Max | 25.5% | 51 |
-| GLM-5.3-Flash | 23.5% | 47 |
-| DeepSeek-V4.1-Flash | 20.5% | 41 |
-| Kimi K3 | 17.5% | 35 |
-| GLM-5.3 (text-only) | 13.5% | 27 |
-| DeepSeek-V4-Pro (text-only) | 12.5% | 25 |
-| Qwen3.8-Flash | 12.0% | 24 |
-
-</details>
-
 <a id="dataset"></a>
 
 ## 🤗 Dataset
