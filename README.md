@@ -86,7 +86,7 @@ source .venv/bin/activate
 python -m pip install -e .
 ```
 
-### 2. Run your agent
+### 2. Testing
 
 **Use your own harness**
 
