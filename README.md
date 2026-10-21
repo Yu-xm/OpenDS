@@ -88,7 +88,9 @@ python -m pip install -e .
 
 ### 2. Testing
 
-**Use your own harness**
+We support evaluation with either a custom model and harness or the provided evaluation harness.
+
+**Use your own harness (Recommended)**
 
 Run your agent on the [benchmark tasks](#dataset) and export its answers to `predictions.csv`:
 
