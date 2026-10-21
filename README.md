@@ -129,9 +129,13 @@ If you find this work useful, please cite:
 
 The code and included examples are licensed under Apache-2.0.
 
-## 💬 Discussion & Contact
+## 📬 Contact
 
-Email: `yuxm02@gmail.com`
+For questions or feedback, please contact us at `yuxm02@gmail.com`.
+
+## 💬 Discussion Group
+
+Join our WeChat discussion group for discussions and updates.
 
 <p align="center">
   <img src="assets/discussion-group.png" width="320" alt="OpenDS WeChat discussion group QR code, valid until October 27">
