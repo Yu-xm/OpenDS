@@ -66,7 +66,7 @@ source .venv/bin/activate
 python -m pip install -e .
 ```
 
-### 2. Testing
+### 2. Running
 
 We support evaluation with either a custom model and harness or the provided evaluation harness.
 
