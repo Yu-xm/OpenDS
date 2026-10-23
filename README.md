@@ -26,9 +26,9 @@
 
 <a id="benchmark-results"></a>
 
-## News
+## 🔥 News
 
-- **[2026.10]** 🔥 Our paper **[Deep Search in Real-World Web Environments](https://arxiv.org/abs/2610.30181)** is now available on arXiv! 🎉
+- **[2026.10]** 🎉 Our paper **[Deep Search in Real-World Web Environments](https://arxiv.org/abs/2610.30181)** is now available on arXiv! 
 
 ## 📊 Benchmark Results
 
